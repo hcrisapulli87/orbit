@@ -1,4 +1,5 @@
 import { ScreenHeader } from '../components/ScreenHeader'
+import { TaskRow } from '../components/TaskRow'
 import { EmptyState } from '../components/ui/EmptyState'
 import { useData } from '../data/DataProvider'
 import { isInbox } from '../data/tasks'
@@ -15,9 +16,7 @@ export default function Inbox() {
       ) : (
         <div className="card">
           {inbox.map((t) => (
-            <p key={t.id} style={{ margin: '4px 0' }}>
-              {t.title}
-            </p>
+            <TaskRow key={t.id} task={t} />
           ))}
         </div>
       )}
