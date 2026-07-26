@@ -1,6 +1,13 @@
+import { Route, Routes } from 'react-router-dom'
 import { useAuth } from './auth/AuthProvider'
-import { DataProvider, useData } from './data/DataProvider'
+import { DataProvider } from './data/DataProvider'
+import { Layout } from './components/Layout'
 import Login from './screens/Login'
+import Today from './screens/Today'
+import Calendar from './screens/Calendar'
+import Inbox from './screens/Inbox'
+import Lists from './screens/Lists'
+import Habits from './screens/Habits'
 
 export default function App() {
   const { session, loading } = useAuth()
@@ -14,32 +21,16 @@ export default function App() {
   // DataProvider sits inside the gate, so every data hook can assume a user.
   return (
     <DataProvider>
-      <Shell />
+      <Routes>
+        <Route element={<Layout />}>
+          <Route path="/" element={<Today />} />
+          <Route path="/calendar" element={<Calendar />} />
+          <Route path="/inbox" element={<Inbox />} />
+          <Route path="/lists" element={<Lists />} />
+          <Route path="/habits" element={<Habits />} />
+          <Route path="*" element={<Today />} />
+        </Route>
+      </Routes>
     </DataProvider>
-  )
-}
-
-// Placeholder shell proving the data layer round-trips. The tab bar and real
-// screens land in the next commits.
-function Shell() {
-  const { areas, projects, tasks, loading, error } = useData()
-  const { signOut } = useAuth()
-
-  if (loading) return <div className="spinner-wrap">Loading…</div>
-
-  return (
-    <main className="screen">
-      <h1 className="brand">Orbit</h1>
-      {error && <p className="error">{error}</p>}
-      <div className="card">
-        <h2>Connected</h2>
-        <p className="muted">
-          {areas.length} areas · {projects.length} projects · {tasks.length} tasks
-        </p>
-      </div>
-      <button className="btn" onClick={() => void signOut()}>
-        Sign out
-      </button>
-    </main>
   )
 }

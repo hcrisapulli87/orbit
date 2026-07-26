@@ -117,6 +117,37 @@ body::before {
 .btn--small { padding: 7px 12px; font-size: 0.85rem; min-height: 0; }
 .btn:disabled { opacity: 0.5; }
 
+/* ---- floating glass tab bar ---- */
+.tabbar {
+  position: fixed; left: 50%; transform: translateX(-50%);
+  bottom: calc(14px + env(safe-area-inset-bottom));
+  display: flex; align-items: stretch; gap: 2px;
+  width: min(440px, calc(100vw - 24px));
+  background: rgba(13, 16, 48, 0.62);
+  backdrop-filter: var(--blur); -webkit-backdrop-filter: var(--blur);
+  border: 1px solid var(--border); border-radius: 999px;
+  padding: 6px; z-index: 40;
+  box-shadow: var(--shadow);
+}
+.tabbar a {
+  flex: 1; text-align: center; padding: 8px 0 6px; text-decoration: none;
+  color: var(--dim); font-size: 0.6rem; font-weight: 600; border-radius: 999px;
+  display: flex; flex-direction: column; align-items: center; gap: 2px;
+  position: relative;
+  transition: background 180ms ease, color 180ms ease;
+}
+.tabbar a.active { color: var(--accent-ink); background: var(--accent); font-weight: 700; }
+.tabbar .icon { display: block; font-size: 1.15rem; }
+
+/* unread-style count on the Inbox tab */
+.tabbar .badge {
+  position: absolute; top: 2px; right: calc(50% - 22px);
+  min-width: 17px; height: 17px; padding: 0 4px;
+  border-radius: 999px; background: var(--accent-2); color: #1a1140;
+  font-size: 0.6rem; font-weight: 800; line-height: 17px;
+}
+.tabbar a.active .badge { background: var(--accent-ink); color: var(--accent); }
+
 /* ---- loading / empty ---- */
 .spinner-wrap { min-height: 100dvh; display: grid; place-items: center; color: var(--dim); }
 .empty { text-align: center; color: var(--dim); padding: 28px 12px; }
