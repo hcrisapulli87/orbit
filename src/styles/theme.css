@@ -1,0 +1,127 @@
+/* ============================================================================
+   Orbit — Liquid Glass design system (Deep Indigo)
+   All colour lives in tokens; a palette swap is a one-block edit.
+   Deliberately distinct from Tally's Deep Aqua so the two home-screen icons
+   and the two apps never get mistaken for each other.
+   ============================================================================ */
+:root {
+  /* palette — Deep Indigo */
+  --accent: #ffb454;                  /* amber — primary actions, active tab */
+  --accent-2: #a78bfa;                /* violet — secondary, habits, events */
+  --accent-ink: #2a1a00;              /* text on accent fills */
+  --grad: linear-gradient(135deg, #ffc978, #ffb454);
+  --grad-2: linear-gradient(135deg, #c4b5fd, #a78bfa);
+  --done: #4bd08a;                    /* completed */
+  --danger: #f2a15c;                  /* due soon (warm) */
+  --warn: #f2a15c;
+  --danger-strong: #ff6b6b;           /* overdue / destructive text */
+
+  /* glass surfaces */
+  --glass: rgba(255, 255, 255, 0.10);
+  --glass-2: rgba(255, 255, 255, 0.06);
+  --border: rgba(255, 255, 255, 0.20);
+  --inner: rgba(255, 255, 255, 0.14);  /* emoji tiles / nested wells */
+
+  /* ink */
+  --ink: #ffffff;
+  --dim: rgba(255, 255, 255, 0.62);    /* never lighter than this */
+
+  /* fixed backdrop — the darkest point contrast is checked against */
+  --page-bg:
+    radial-gradient(1200px 800px at 80% -10%, rgba(255, 180, 84, 0.20), transparent 60%),
+    radial-gradient(900px 700px at -10% 20%, rgba(167, 139, 250, 0.26), transparent 55%),
+    linear-gradient(160deg, #0d1030 0%, #151a4a 55%, #0d1030 100%);
+  --page-solid: #0d1030;               /* darkest reference for contrast */
+
+  /* elevation + radii */
+  --shadow: 0 10px 34px rgba(0, 0, 0, 0.34), inset 0 1px 0 rgba(255, 255, 255, 0.26);
+  --shadow-soft: 0 6px 20px rgba(0, 0, 0, 0.26), inset 0 1px 0 rgba(255, 255, 255, 0.20);
+  --radius: 26px;
+  --radius-hero: 30px;
+  --radius-sm: 16px;
+  --blur: blur(24px) saturate(180%);
+}
+
+* { box-sizing: border-box; }
+html, body, #root { margin: 0; height: 100%; }
+html { background: var(--page-solid); }
+body {
+  color: var(--ink);
+  font-family: 'Manrope', 'Segoe UI', system-ui, -apple-system, sans-serif;
+  font-weight: 500;
+  letter-spacing: -0.01em;
+  -webkit-font-smoothing: antialiased;
+  -webkit-text-size-adjust: 100%;
+}
+/* fixed coloured backdrop — cards float over it; it never scrolls */
+body::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  background: var(--page-bg);
+  background-color: var(--page-solid);
+  z-index: -1;
+}
+
+/* bottom padding clears BOTH the tab bar and the capture bar above it */
+.screen { padding: 12px 16px calc(164px + env(safe-area-inset-bottom)); max-width: 640px; margin: 0 auto; }
+.screen--center {
+  min-height: 100dvh; display: flex; flex-direction: column;
+  align-items: center; justify-content: center; gap: 8px; padding: 24px;
+}
+
+.brand { color: var(--ink); margin: 0; font-size: 2rem; font-weight: 800; letter-spacing: -0.04em; }
+.greeting { margin: 0; font-size: 1.65rem; font-weight: 800; letter-spacing: -0.03em; }
+.muted { color: var(--dim); }
+.error { color: var(--danger-strong); }
+.warn { color: var(--warn); }
+.row { display: flex; align-items: center; gap: 8px; }
+.row--between { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+
+/* ---- the glass recipe: fill + hairline + backdrop blur + inset highlight ---- */
+.card {
+  background: var(--glass);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 16px;
+  margin-bottom: 14px;
+  backdrop-filter: var(--blur);
+  -webkit-backdrop-filter: var(--blur);
+  box-shadow: var(--shadow);
+}
+.card h2 {
+  margin: 0 0 12px; font-size: 0.72rem; text-transform: uppercase;
+  letter-spacing: 0.1em; color: var(--dim); font-weight: 700;
+}
+
+.input, select.input, textarea.input {
+  width: 100%; padding: 13px 14px; border: 1px solid var(--border); border-radius: var(--radius-sm);
+  font-size: 1rem; background: var(--glass-2); color: var(--ink); font-family: inherit;
+  backdrop-filter: var(--blur); -webkit-backdrop-filter: var(--blur);
+}
+.input::placeholder { color: var(--dim); }
+.input:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+.login-form { display: flex; flex-direction: column; gap: 10px; width: min(320px, 90vw); }
+
+.btn {
+  padding: 12px 16px; border-radius: var(--radius-sm); border: 1px solid var(--border);
+  background: var(--glass); color: var(--ink); font-size: 0.95rem; font-weight: 600; cursor: pointer;
+  font-family: inherit; transition: transform 180ms ease, background 180ms ease;
+  min-height: 44px;
+}
+.btn:active { transform: scale(0.97); }
+.btn--primary {
+  background: var(--grad); border-color: transparent; color: var(--accent-ink);
+  font-weight: 800; box-shadow: 0 6px 18px rgba(255, 180, 84, 0.32);
+}
+.btn--small { padding: 7px 12px; font-size: 0.85rem; min-height: 0; }
+.btn:disabled { opacity: 0.5; }
+
+/* ---- loading / empty ---- */
+.spinner-wrap { min-height: 100dvh; display: grid; place-items: center; color: var(--dim); }
+.empty { text-align: center; color: var(--dim); padding: 28px 12px; }
+.empty__icon { font-size: 2rem; display: block; margin-bottom: 8px; }
+
+@media (prefers-reduced-motion: reduce) {
+  * { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; }
+}
