@@ -1,16 +1,23 @@
-import { todayISO, relativeLabel, addDays } from './domain/day'
+import { useAuth } from './auth/AuthProvider'
+import Login from './screens/Login'
 
-// Scaffold shell. The auth gate lands in the next commit, the tab bar after it.
 export default function App() {
-  const today = todayISO()
+  const { session, loading, signOut } = useAuth()
 
+  if (loading) return <div className="spinner-wrap">Loading…</div>
+
+  // Rendered bare rather than as a route, so the URL is preserved through
+  // sign-in and a deep link still lands where it was aimed.
+  if (!session) return <Login />
+
+  // Placeholder shell. The tab bar and screens land in the next commits.
   return (
-    <div className="screen screen--center">
+    <main className="screen screen--center">
       <h1 className="brand">Orbit</h1>
-      <p className="muted">Everything you have to do, in one place.</p>
-      <p className="muted">
-        {relativeLabel(today, today)} · {relativeLabel(addDays(today, 1), today)}
-      </p>
-    </div>
+      <p className="muted">Signed in as {session.user.email}</p>
+      <button className="btn" onClick={() => void signOut()}>
+        Sign out
+      </button>
+    </main>
   )
 }
