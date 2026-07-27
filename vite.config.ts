@@ -17,6 +17,14 @@ export default defineConfig({
         background_color: '#0d1030',
         display: 'standalone',
         start_url: '/',
+        // Share into Orbit from any app. A GET target needs no service-worker
+        // code at all — the params arrive in the URL and CaptureBar picks
+        // them up, so a shared link becomes an Inbox item in one tap.
+        share_target: {
+          action: '/',
+          method: 'GET',
+          params: { title: 'title', text: 'text', url: 'url' },
+        },
         icons: [
           { src: 'pwa-192.png', sizes: '192x192', type: 'image/png' },
           { src: 'pwa-512.png', sizes: '512x512', type: 'image/png' },

@@ -4,7 +4,7 @@ import { useAuth } from '../auth/AuthProvider'
 import { todayISO } from '../domain/day'
 import { fetchAreas } from './areas'
 import { fetchProjects } from './projects'
-import { createTask, fetchTasks, setTaskDone } from './tasks'
+import { createTask, fetchTasks, setTaskDone, updateTask } from './tasks'
 import { useRealtime } from './useRealtime'
 import type { Area, NewTask, Project, Task } from './types'
 
@@ -17,6 +17,7 @@ interface DataContextValue {
   reload: () => void
   addTask: (task: NewTask) => Promise<void>
   toggleTask: (task: Task) => Promise<void>
+  patchTask: (id: string, patch: Partial<Task>) => Promise<void>
 }
 
 const DataContext = createContext<DataContextValue | undefined>(undefined)
@@ -88,9 +89,22 @@ export function DataProvider({ children }: { children: ReactNode }) {
     [reload],
   )
 
+  const patchTask = useCallback(
+    async (id: string, patch: Partial<Task>) => {
+      setTasks((prev) => prev.map((t) => (t.id === id ? { ...t, ...patch } : t)))
+      try {
+        await updateTask(id, patch)
+      } catch (e: unknown) {
+        setError(e instanceof Error ? e.message : 'Could not save that')
+        reload()
+      }
+    },
+    [reload],
+  )
+
   return (
     <DataContext.Provider
-      value={{ areas, projects, tasks, loading, error, reload, addTask, toggleTask }}
+      value={{ areas, projects, tasks, loading, error, reload, addTask, toggleTask, patchTask }}
     >
       {children}
     </DataContext.Provider>

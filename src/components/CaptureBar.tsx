@@ -1,5 +1,6 @@
-import { useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import type { FormEvent, KeyboardEvent } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import { useData } from '../data/DataProvider'
 import { describeRecurrence, parseCapture } from '../domain/capture'
 import { formatTime, relativeLabel, todayISO } from '../domain/day'
@@ -28,6 +29,22 @@ export function CaptureBar() {
   const parsed = useMemo(() => parseCapture(text, new Date(), known), [text, known])
   const today = todayISO()
   const guessing = parsed.confidence === 'low'
+
+  // PWA share target: Android hands us ?title=&text=&url= on a GET share.
+  // Pre-fill and open rather than saving silently, so a share is still a
+  // deliberate capture and the parse preview is visible.
+  const [params, setParams] = useSearchParams()
+  useEffect(() => {
+    const shared = [params.get('title'), params.get('text'), params.get('url')]
+      .filter(Boolean)
+      .join(' ')
+      .trim()
+    if (!shared) return
+    setText(shared)
+    setOpen(true)
+    setParams({}, { replace: true })
+    requestAnimationFrame(() => inputRef.current?.focus())
+  }, [params, setParams])
 
   const submit = async (e: FormEvent) => {
     e.preventDefault()

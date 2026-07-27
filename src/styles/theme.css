@@ -192,6 +192,14 @@ body::before {
 /* a parsed value the app is only guessing at - dotted, and labelled in words */
 .chip--guess { border-style: dashed; }
 
+/* ---- inbox triage ---- */
+.triage { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
+.chip--action {
+  cursor: pointer; color: var(--ink); font-family: inherit;
+  min-height: 32px; padding: 4px 12px;
+}
+.chip--action:active { transform: scale(0.96); }
+
 /* ---- capture bar: the only way to create a task ---- */
 .capture {
   position: fixed; left: 50%; transform: translateX(-50%);
