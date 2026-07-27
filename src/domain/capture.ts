@@ -432,6 +432,44 @@ function parseTime(state: State): void {
   })
 }
 
+// ── describing a parse back to the user ──────────────────────────────────────
+
+const WEEKDAY_LABELS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']
+const ORDINAL_LABELS: Record<number, string> = { 1: '1st', 2: '2nd', 3: '3rd', 4: '4th' }
+
+/** "every month" reads better than "every 1 month", so 1 drops the number. */
+const plural = (n: number, unit: string) => (n === 1 ? unit : `${n} ${unit}s`)
+/** An interval always states its count: "1 month after it's done". */
+const counted = (n: number, unit: string) => `${n} ${unit}${n === 1 ? '' : 's'}`
+
+/**
+ * Plain-English echo of a parsed rule, shown as a chip so the guess is visible
+ * before it is committed. Deliberately lives beside the parser: it describes
+ * what the *words* said, not what the engine will schedule.
+ */
+export function describeRecurrence(hint: RecurrenceHint): string {
+  const days = hint.weekdays.map((d) => WEEKDAY_LABELS[d])
+
+  switch (hint.rule_type) {
+    case 'daily':
+      return `every ${plural(hint.step, 'day')}`
+    case 'weekly':
+      if (days.length === 5 && hint.weekdays.every((d) => d >= 1 && d <= 5)) return 'every weekday'
+      if (days.length === 0) return `every ${plural(hint.step, 'week')}`
+      return `every ${plural(hint.step, 'week')} on ${days.join(', ')}`
+    case 'monthly_day':
+      return `every ${plural(hint.step, 'month')}`
+    case 'monthly_last':
+      return 'last day of the month'
+    case 'monthly_nth':
+      return `${hint.nth === -1 ? 'last' : ORDINAL_LABELS[hint.nth ?? 1]} ${days[0]} of the month`
+    case 'yearly':
+      return `every ${plural(hint.step, 'year')}`
+    case 'after_completion':
+      return `${counted(hint.after_n ?? 1, hint.after_unit ?? 'day')} after it's done`
+  }
+}
+
 // ── entry point ──────────────────────────────────────────────────────────────
 
 /**

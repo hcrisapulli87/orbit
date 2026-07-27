@@ -1,6 +1,7 @@
 import { NavLink, Outlet } from 'react-router-dom'
 import { useData } from '../data/DataProvider'
 import { isInbox } from '../data/tasks'
+import { CaptureBar } from './CaptureBar'
 
 // The five daily surfaces. Project detail, task detail, templates, settings and
 // search are reached from within these rather than from the bar.
@@ -19,6 +20,8 @@ export function Layout() {
   return (
     <>
       <Outlet />
+      {/* Reachable from every screen, above the tab bar — capture is never a trip. */}
+      <CaptureBar />
       <nav className="tabbar">
         {TABS.map((t) => (
           <NavLink

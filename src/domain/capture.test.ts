@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { parseCapture } from './capture'
+import { describeRecurrence, parseCapture } from './capture'
 
 const NOW = new Date(2026, 6, 27, 9, 0) // Monday 27 July 2026, 09:00 local
 
@@ -404,6 +404,30 @@ describe('parseCapture — recurrence', () => {
     const r = parseCapture('bins every tue from 4/8', NOW, KNOWN)
     expect(r.recurrence).toMatchObject({ rule_type: 'weekly', weekdays: [2] })
     expect(r.dueOn).toBe('2026-08-04')
+  })
+})
+
+describe('describeRecurrence', () => {
+  const describe_ = (text: string) => {
+    const r = parseCapture(text, NOW, KNOWN).recurrence
+    return r ? describeRecurrence(r) : null
+  }
+
+  it('echoes each rule type in plain English', () => {
+    expect(describe_('vitamins every day')).toBe('every day')
+    expect(describe_('water every 3 days')).toBe('every 3 days')
+    expect(describe_('standup every weekday')).toBe('every weekday')
+    expect(describe_('review every week')).toBe('every week')
+    expect(describe_('bins every tue')).toBe('every week on Tuesday')
+    expect(describe_('gym every mon, wed, fri')).toBe('every week on Monday, Wednesday, Friday')
+    expect(describe_('cleaner every 2 weeks')).toBe('every 2 weeks')
+    expect(describe_('rent every month')).toBe('every month')
+    expect(describe_('rent last day of month')).toBe('last day of the month')
+    expect(describe_('bins 2nd tuesday of the month')).toBe('2nd Tuesday of the month')
+    expect(describe_('report last friday of the month')).toBe('last Friday of the month')
+    expect(describe_('rego every year')).toBe('every year')
+    expect(describe_('car service every 6 months after done')).toBe("6 months after it's done")
+    expect(describe_('rotate tyres 1 month after done')).toBe("1 month after it's done")
   })
 })
 

@@ -192,6 +192,40 @@ body::before {
 /* a parsed value the app is only guessing at - dotted, and labelled in words */
 .chip--guess { border-style: dashed; }
 
+/* ---- capture bar: the only way to create a task ---- */
+.capture {
+  position: fixed; left: 50%; transform: translateX(-50%);
+  bottom: calc(78px + env(safe-area-inset-bottom));
+  width: min(440px, calc(100vw - 24px));
+  z-index: 45;
+}
+.capture__pill {
+  width: 100%; display: flex; align-items: center; gap: 8px;
+  padding: 11px 16px; border-radius: 999px; cursor: pointer;
+  background: rgba(13, 16, 48, 0.62); color: var(--dim);
+  border: 1px solid var(--border); font: inherit; font-size: 0.9rem; text-align: left;
+  backdrop-filter: var(--blur); -webkit-backdrop-filter: var(--blur);
+  box-shadow: var(--shadow-soft);
+}
+.capture__plus {
+  width: 24px; height: 24px; border-radius: 50%; flex-shrink: 0;
+  background: var(--grad); color: var(--accent-ink);
+  display: grid; place-items: center; font-weight: 800; font-size: 1rem; line-height: 1;
+}
+.capture__panel {
+  background: rgba(13, 16, 48, 0.78);
+  border: 1px solid var(--border); border-radius: var(--radius);
+  padding: 10px; box-shadow: var(--shadow);
+  backdrop-filter: var(--blur); -webkit-backdrop-filter: var(--blur);
+}
+.capture__input {
+  width: 100%; border: 0; background: none; color: var(--ink);
+  font: inherit; font-size: 1rem; padding: 6px 4px;
+}
+.capture__input:focus { outline: none; }
+.capture__chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+.capture__hint { margin: 8px 4px 2px; font-size: 0.72rem; color: var(--dim); }
+
 /* ---- loading / empty ---- */
 .spinner-wrap { min-height: 100dvh; display: grid; place-items: center; color: var(--dim); }
 .empty { text-align: center; color: var(--dim); padding: 28px 12px; }
