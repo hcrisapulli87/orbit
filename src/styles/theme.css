@@ -192,6 +192,67 @@ body::before {
 /* a parsed value the app is only guessing at - dotted, and labelled in words */
 .chip--guess { border-style: dashed; }
 
+/* ---- segmented control + pager ---- */
+.segmented {
+  display: flex; gap: 2px; padding: 4px; margin-bottom: 12px;
+  background: var(--glass-2); border: 1px solid var(--border); border-radius: 999px;
+}
+.segmented button {
+  flex: 1; min-height: 36px; border: 0; border-radius: 999px; cursor: pointer;
+  background: none; color: var(--dim); font: inherit; font-size: 0.85rem; font-weight: 600;
+}
+.segmented button.active { background: var(--accent); color: var(--accent-ink); font-weight: 800; }
+.pager { margin-bottom: 12px; }
+
+/* ---- month grid ---- */
+.monthgrid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 2px; }
+.monthgrid--head { margin-bottom: 4px; text-align: center; font-size: 0.7rem; font-weight: 700; }
+.monthcell {
+  aspect-ratio: 1; min-height: 40px; padding: 4px 0 0; cursor: pointer;
+  display: flex; flex-direction: column; align-items: center; gap: 3px;
+  background: var(--glass-2); border: 1px solid transparent; border-radius: 10px;
+  color: var(--ink); font: inherit; font-size: 0.8rem;
+}
+.monthcell--outside { opacity: 0.35; }
+.monthcell--today { border-color: var(--accent); font-weight: 800; }
+.monthcell__num { line-height: 1.1; }
+.monthcell__pips { display: flex; align-items: center; gap: 2px; flex-wrap: wrap; justify-content: center; }
+.monthcell__more { font-size: 0.6rem; font-style: normal; color: var(--dim); }
+.pip--cal { width: 5px; height: 5px; border-radius: 50%; background: var(--accent); }
+.pip--event { background: var(--accent-2); }
+.pip--done { background: var(--done); opacity: 0.6; }
+
+/* ---- hour grid, shared by week and day ---- */
+.weekgrid { display: flex; gap: 2px; overflow-x: auto; }
+.weekgrid__gutter { position: relative; width: 38px; flex-shrink: 0; }
+.weekgrid__hour { position: absolute; right: 4px; font-size: 0.62rem; color: var(--dim); }
+.weekgrid__day { flex: 1; min-width: 44px; }
+.weekgrid--single .weekgrid__day { min-width: 0; }
+.weekgrid__head {
+  width: 100%; padding: 2px 0 6px; border: 0; background: none; cursor: pointer;
+  color: var(--dim); font: inherit; font-size: 0.62rem;
+  display: flex; flex-direction: column; align-items: center;
+}
+.weekgrid__head strong { color: var(--ink); font-size: 0.85rem; }
+.weekgrid__head--today strong { color: var(--accent); }
+
+.daycol { position: relative; background: var(--glass-2); border-radius: 8px; }
+.daycol__slot {
+  position: absolute; left: 0; right: 0; padding: 0; cursor: pointer;
+  background: none; border: 0; border-top: 1px solid var(--glass-2);
+}
+.daycol__slot:disabled { cursor: default; }
+.daycol__item {
+  position: absolute; overflow: hidden; padding: 2px 4px;
+  border-radius: 6px; font-size: 0.66rem; line-height: 1.2;
+  background: rgba(255, 180, 84, 0.28); border: 1px solid rgba(255, 180, 84, 0.5);
+  color: var(--ink);
+}
+.daycol__item--block {
+  background: rgba(167, 139, 250, 0.26); border-color: rgba(167, 139, 250, 0.5);
+}
+.daycol__time { color: var(--dim); }
+
 /* ---- overdue banner + capacity meter ---- */
 .banner {
   border: 1px solid rgba(255, 107, 107, 0.45);
