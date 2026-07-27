@@ -4,7 +4,7 @@ import { useAuth } from '../auth/AuthProvider'
 import { todayISO } from '../domain/day'
 import { fetchAreas } from './areas'
 import { fetchProjects } from './projects'
-import { createTask, fetchTasks, setTaskDone, updateTask } from './tasks'
+import { createTask, deleteTask, fetchTasks, setTaskDone, updateTask } from './tasks'
 import { advanceAfterCompletion, createSeries, ensureOccurrences, fetchSeries, ruleOf } from './series'
 import { nextAfterCompletion } from '../domain/recurrence'
 import { DEFAULT_SETTINGS, fetchSettings, updateSettings } from './settings'
@@ -33,6 +33,7 @@ interface DataContextValue {
   addSeries: (series: NewSeries) => Promise<void>
   toggleTask: (task: Task) => Promise<void>
   patchTask: (id: string, patch: Partial<Task>) => Promise<void>
+  removeTask: (id: string) => Promise<void>
 }
 
 const DataContext = createContext<DataContextValue | undefined>(undefined)
@@ -260,11 +261,27 @@ export function DataProvider({ children }: { children: ReactNode }) {
     [reload],
   )
 
+  const removeTask = useCallback(
+    async (id: string) => {
+      // Subtasks cascade in the database, so removing a parent takes its
+      // children with it — the row disappears from local state either way.
+      setTasks((prev) => prev.filter((t) => t.id !== id && t.parent_id !== id))
+      try {
+        await deleteTask(id)
+      } catch (e: unknown) {
+        setError(e instanceof Error ? e.message : 'Could not delete that')
+        reload()
+      }
+    },
+    [reload],
+  )
+
   return (
     <DataContext.Provider
       value={{
         areas, projects, tasks, series, blocks, settings, loading, error, reload,
-        addTask, addSeries, toggleTask, patchTask, saveSettings, addBlock, removeBlock, planDay,
+        addTask, addSeries, toggleTask, patchTask, removeTask,
+        saveSettings, addBlock, removeBlock, planDay,
       }}
     >
       {children}

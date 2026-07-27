@@ -155,7 +155,10 @@ body::before {
 }
 .task-row:last-child { border-bottom: 0; }
 .task-row__body { flex: 1; min-width: 0; }
-.task-row__title { margin: 0; font-weight: 600; overflow-wrap: anywhere; }
+.task-row__title {
+  display: block; margin: 0; font-weight: 600; overflow-wrap: anywhere;
+  color: var(--ink); text-decoration: none;
+}
 .task-row--done .task-row__title { color: var(--dim); text-decoration: line-through; }
 .task-row__meta {
   margin: 3px 0 0; display: flex; flex-wrap: wrap; gap: 6px;

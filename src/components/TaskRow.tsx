@@ -1,3 +1,4 @@
+import { Link } from 'react-router-dom'
 import { useData } from '../data/DataProvider'
 import { compareISO, daysBetween, formatTime, relativeLabel, todayISO } from '../domain/day'
 import type { Task } from '../data/types'
@@ -9,8 +10,9 @@ import type { Task } from '../data/types'
  * that is the whole behavioural difference between kind='event' and kind='task'.
  */
 export function TaskRow({ task, showProject = true }: { task: Task; showProject?: boolean }) {
-  const { projects, toggleTask } = useData()
+  const { projects, tasks, toggleTask } = useData()
   const today = todayISO()
+  const children = tasks.filter((t) => t.parent_id === task.id)
   const done = task.status === 'done'
   const isEvent = task.kind === 'event'
   const project = showProject ? projects.find((p) => p.id === task.project_id) : undefined
@@ -34,7 +36,9 @@ export function TaskRow({ task, showProject = true }: { task: Task; showProject?
       )}
 
       <div className="task-row__body">
-        <p className="task-row__title">{task.title}</p>
+        <Link className="task-row__title" to={`/task/${task.id}`}>
+          {task.title}
+        </Link>
         <p className="task-row__meta">
           {task.priority >= 2 && <span className={`pip pip--${task.priority}`} aria-hidden="true" />}
           {task.due_on && (
@@ -60,6 +64,11 @@ export function TaskRow({ task, showProject = true }: { task: Task; showProject?
               #{tag}
             </span>
           ))}
+          {children.length > 0 && (
+            <span className="chip">
+              ☑ {children.filter((c) => c.status === 'done').length}/{children.length}
+            </span>
+          )}
           {task.parse_confidence === 'low' && <span className="chip chip--guess">guess</span>}
         </p>
       </div>
