@@ -262,6 +262,33 @@ create table if not exists public.task_notifications (
   unique (owner_id, task_id, kind, sent_for)
 );
 
+-- ── v7: the Discord bot's contract ────────────────────────────────────────────
+
+-- The household bot reads THIS VIEW, never the tables. That's the shared-data-
+-- store contract: task_tasks can be refactored freely as long as the view keeps
+-- its shape.
+--
+-- security_invoker = on so the app still sees only its owner's rows; the bot
+-- uses a service-role key, which bypasses RLS by design, and only ever selects.
+create or replace view public.task_digest_v
+with (security_invoker = on) as
+select
+  t.id,
+  t.title,
+  t.kind,
+  t.status,
+  t.priority,
+  t.due_on,
+  t.due_time,
+  t.completed_on,
+  coalesce(s.lead_days, 0) as lead_days,
+  p.name                   as project_name,
+  a.name                   as area_name
+from public.task_tasks t
+left join public.task_series   s on s.id = t.series_id
+left join public.task_projects p on p.id = t.project_id
+left join public.task_areas    a on a.id = coalesce(t.area_id, p.area_id);
+
 -- ── Seeds ─────────────────────────────────────────────────────────────────────
 -- Orbit is single-user, so the seeds belong to one account. Change the email
 -- below if the owner ever changes. Idempotent: re-running inserts nothing new.
