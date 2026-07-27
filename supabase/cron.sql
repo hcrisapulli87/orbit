@@ -4,7 +4,8 @@
 -- shared secret, and schema.sql is meant to be safely re-runnable by anyone at
 -- any time. Run this once, by hand, after deploying the function.
 --
--- Prerequisites (Dashboard → Database → Extensions): enable pg_cron and pg_net.
+-- Prerequisites: pg_cron and pg_net. This file enables them itself, but they
+-- can also be toggled under Dashboard → Database → Extensions.
 --
 -- Do NOT fill the placeholders in THIS file — it is committed. Copy it to
 -- supabase/cron.local.sql (gitignored) and edit that, or paste straight into
@@ -14,6 +15,12 @@
 --   <PROJECT-REF>   e.g. pxgqfwicnwcwnimeulin
 --   <NOTIFY-SECRET> the same value passed to
 --                   supabase secrets set NOTIFY_SECRET=…
+
+-- The extensions themselves. pg_cron is what CREATES the `cron` schema, so
+-- without this the whole file fails with: schema "cron" does not exist.
+-- Both are idempotent.
+create extension if not exists pg_cron;
+create extension if not exists pg_net;
 
 -- Idempotent: unschedule first so re-running doesn't stack duplicate jobs.
 select cron.unschedule('orbit-notify')
