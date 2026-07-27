@@ -111,7 +111,7 @@ export default function Templates() {
             <label className="row--between setting-row">
               <span>Anchor date</span>
               <input
-                className="input input--num"
+                className="input input--time"
                 type="date"
                 value={anchor}
                 onChange={(e) => setAnchor(e.target.value)}

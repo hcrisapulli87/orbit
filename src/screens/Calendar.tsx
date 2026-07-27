@@ -14,6 +14,15 @@ import type { TimedEntry } from '../components/calendar/DayColumn'
 type View = 'day' | 'week' | 'month'
 
 const DAY_INITIALS = ['M', 'T', 'W', 'T', 'F', 'S', 'S']
+const MONTHS_SHORT = [
+  'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec',
+]
+
+/** "27 Jul" — used for week spans, where a relative label would read oddly. */
+const shortDate = (iso: string): string => {
+  const [, m, d] = iso.split('-').map(Number)
+  return `${d} ${MONTHS_SHORT[m - 1]}`
+}
 
 /** A block becomes a timed entry; its title is its label or its task's. */
 function blockEntries(blocks: Block[], tasks: Task[]): TimedEntry[] {
@@ -68,9 +77,12 @@ export default function Calendar() {
     else setCursor(addDays(cursor, dir * (view === 'week' ? 7 : 1)))
   }
 
+  // "Week of Today" is what relativeLabel gives you when the week starts today,
+  // which reads like a bug. Weeks get an explicit span instead.
+  const week = weekDays(cursor)
   const heading =
     view === 'month' ? monthLabel(cursor)
-    : view === 'week' ? `Week of ${relativeLabel(weekDays(cursor)[0], today)}`
+    : view === 'week' ? `${shortDate(week[0])} – ${shortDate(week[6])}`
     : relativeLabel(cursor, today)
 
   return (
@@ -88,11 +100,11 @@ export default function Calendar() {
       />
 
       <div className="row--between pager">
-        <button className="btn btn--small" onClick={() => step(-1)} aria-label="Previous">
+        <button className="btn btn--pager" onClick={() => step(-1)} aria-label="Previous">
           ‹
         </button>
         <strong>{heading}</strong>
-        <button className="btn btn--small" onClick={() => step(1)} aria-label="Next">
+        <button className="btn btn--pager" onClick={() => step(1)} aria-label="Next">
           ›
         </button>
       </div>
@@ -223,11 +235,9 @@ function WeekView({
     <div className="card">
       <div className="weekgrid">
         <div className="weekgrid__gutter">
-          {hourLabels(dayStartMin, dayEndMin).map((label, i) => (
-            <span key={label} className="weekgrid__hour" style={{ top: i * HOUR_PX - 7 }}>
-              {label}
-            </span>
-          ))}
+          {/* Matches the day-header height, so the labels line up with the rows. */}
+          <div className="weekgrid__headspacer" aria-hidden="true" />
+          <HourLabels startMin={dayStartMin} endMin={dayEndMin} />
         </div>
         {days.map((date) => {
           const items = byDay.get(date) ?? []
@@ -315,11 +325,7 @@ function DayView({
         <h2>{formatTime(minutesToTime(dayStartMin))} – {formatTime(minutesToTime(dayEndMin))}</h2>
         <div className="weekgrid weekgrid--single">
           <div className="weekgrid__gutter">
-            {hourLabels(dayStartMin, dayEndMin).map((label, i) => (
-              <span key={label} className="weekgrid__hour" style={{ top: i * HOUR_PX - 7 }}>
-                {label}
-              </span>
-            ))}
+            <HourLabels startMin={dayStartMin} endMin={dayEndMin} />
           </div>
           <div className="weekgrid__day">
             <DayColumn
@@ -379,7 +385,21 @@ function DayView({
   )
 }
 
-function hourLabels(startMin: number, endMin: number): string[] {
+function HourLabels({ startMin, endMin }: { startMin: number; endMin: number }) {
   const count = Math.max(1, Math.ceil((endMin - startMin) / 60))
-  return Array.from({ length: count }, (_, i) => formatTime(minutesToTime(startMin + i * 60)))
+  return (
+    <div className="weekgrid__hours">
+      {Array.from({ length: count }, (_, i) => (
+        <span
+          key={i}
+          className="weekgrid__hour"
+          // The nudge centres each label on its gridline, except the first,
+          // which would otherwise be clipped by the top of the card.
+          style={{ top: Math.max(0, i * HOUR_PX - 7) }}
+        >
+          {formatTime(minutesToTime(startMin + i * 60))}
+        </span>
+      ))}
+    </div>
+  )
 }

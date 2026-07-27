@@ -83,7 +83,7 @@ export default function Settings() {
         <label className="row--between setting-row">
           <span>Starts</span>
           <input
-            className="input input--num"
+            className="input input--time"
             type="time"
             value={settings.day_start.slice(0, 5)}
             onChange={(e) => void saveSettings({ day_start: e.target.value })}
@@ -92,7 +92,7 @@ export default function Settings() {
         <label className="row--between setting-row">
           <span>Ends</span>
           <input
-            className="input input--num"
+            className="input input--time"
             type="time"
             value={settings.day_end.slice(0, 5)}
             onChange={(e) => void saveSettings({ day_end: e.target.value })}

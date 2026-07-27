@@ -84,7 +84,7 @@ export default function TaskDetail() {
         <label className="row--between setting-row">
           <span>Due</span>
           <input
-            className="input input--num"
+            className="input input--time"
             type="date"
             value={task.due_on ?? ''}
             onChange={(e) => void patchTask(task.id, { due_on: e.target.value || null })}
@@ -93,7 +93,7 @@ export default function TaskDetail() {
         <label className="row--between setting-row">
           <span>Time</span>
           <input
-            className="input input--num"
+            className="input input--time"
             type="time"
             value={task.due_time?.slice(0, 5) ?? ''}
             onChange={(e) => void patchTask(task.id, { due_time: e.target.value || null })}
