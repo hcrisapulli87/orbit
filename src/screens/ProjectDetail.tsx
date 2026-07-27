@@ -5,12 +5,16 @@ import { ScreenHeader } from '../components/ScreenHeader'
 import { TaskRow } from '../components/TaskRow'
 import { EmptyState } from '../components/ui/EmptyState'
 import { ProgressBar } from '../components/ui/ProgressBar'
+import { useAuth } from '../auth/AuthProvider'
 import { useData } from '../data/DataProvider'
+import { saveProjectAsTemplate } from '../data/templates'
 
 export default function ProjectDetail() {
   const { id } = useParams()
-  const { projects, tasks, addTask, patchTask } = useData()
+  const { user } = useAuth()
+  const { projects, tasks, addTask, patchTask, reload } = useData()
   const [draft, setDraft] = useState('')
+  const [saved, setSaved] = useState('')
 
   const project = projects.find((p) => p.id === id)
   if (!project) {
@@ -41,6 +45,16 @@ export default function ProjectDetail() {
     // Dropped rather than deleted: the history of what you bought stays, and
     // nothing is destroyed by a mis-tap.
     await Promise.all(done.map((t) => patchTask(t.id, { status: 'dropped' })))
+  }
+
+  // The inverse of using a template, and the reason any template exists: you
+  // save the shape of a job right after doing it, not before.
+  const saveAsTemplate = async () => {
+    if (!user) return
+    const all = tasks.filter((t) => t.project_id === project.id)
+    await saveProjectAsTemplate(user.id, project.name, project.area_id, all)
+    setSaved(`Saved “${project.name}” as a template`)
+    reload()
   }
 
   return (
@@ -85,6 +99,21 @@ export default function ProjectDetail() {
           open.map((t) => <TaskRow key={t.id} task={t} showProject={false} />)
         )}
       </div>
+
+      {!isList && own.length > 0 && (
+        <div className="card">
+          <h2>Reuse</h2>
+          {saved ? (
+            <p className="muted" style={{ margin: 0 }}>
+              {saved} · <Link to="/templates">See templates</Link>
+            </p>
+          ) : (
+            <button className="btn btn--small" onClick={() => void saveAsTemplate()}>
+              Save as template
+            </button>
+          )}
+        </div>
+      )}
 
       {done.length > 0 && (
         <div className="card">

@@ -11,6 +11,7 @@ import Habits from './screens/Habits'
 import Settings from './screens/Settings'
 import ProjectDetail from './screens/ProjectDetail'
 import TaskDetail from './screens/TaskDetail'
+import Templates from './screens/Templates'
 
 export default function App() {
   const { session, loading } = useAuth()
@@ -34,6 +35,7 @@ export default function App() {
           <Route path="/settings" element={<Settings />} />
           <Route path="/project/:id" element={<ProjectDetail />} />
           <Route path="/task/:id" element={<TaskDetail />} />
+          <Route path="/templates" element={<Templates />} />
           <Route path="*" element={<Today />} />
         </Route>
       </Routes>

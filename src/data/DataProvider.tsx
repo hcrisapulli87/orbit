@@ -9,11 +9,14 @@ import { advanceAfterCompletion, createSeries, ensureOccurrences, fetchSeries, r
 import { nextAfterCompletion } from '../domain/recurrence'
 import { DEFAULT_SETTINGS, fetchSettings, updateSettings } from './settings'
 import { createBlock, deleteBlock, fetchBlocks, replacePlannerBlocks } from './blocks'
+import { fetchTemplateItems, fetchTemplates } from './templates'
 import { suggestBlocks } from '../domain/planner'
 import { minutesToTime, parseTimeToMinutes } from '../domain/day'
 import { defaultEstimateFor } from '../domain/planner'
 import { useRealtime } from './useRealtime'
-import type { Area, Block, NewSeries, NewTask, Project, Series, Settings, Task } from './types'
+import type {
+  Area, Block, NewSeries, NewTask, Project, Series, Settings, Task, Template, TemplateItem,
+} from './types'
 
 interface DataContextValue {
   areas: Area[]
@@ -21,6 +24,8 @@ interface DataContextValue {
   tasks: Task[]
   series: Series[]
   blocks: Block[]
+  templates: Template[]
+  templateItems: TemplateItem[]
   settings: Omit<Settings, 'id' | 'owner_id' | 'created_at'>
   loading: boolean
   error: string
@@ -49,6 +54,8 @@ export function DataProvider({ children }: { children: ReactNode }) {
   const [tasks, setTasks] = useState<Task[]>([])
   const [series, setSeries] = useState<Series[]>([])
   const [blocks, setBlocks] = useState<Block[]>([])
+  const [templates, setTemplates] = useState<Template[]>([])
+  const [templateItems, setTemplateItems] = useState<TemplateItem[]>([])
   const [settings, setSettings] = useState(DEFAULT_SETTINGS)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
@@ -56,13 +63,16 @@ export function DataProvider({ children }: { children: ReactNode }) {
   const reload = useCallback(() => {
     Promise.all([
       fetchAreas(), fetchProjects(), fetchTasks(), fetchSeries(), fetchSettings(), fetchBlocks(),
+      fetchTemplates(), fetchTemplateItems(),
     ])
-      .then(([a, p, t, s, cfg, b]) => {
+      .then(([a, p, t, s, cfg, b, tpl, tplItems]) => {
         setAreas(a)
         setProjects(p)
         setTasks(t)
         setSeries(s)
         setBlocks(b)
+        setTemplates(tpl)
+        setTemplateItems(tplItems)
         // A missing settings row is fine — the defaults are the same values.
         setSettings(cfg ?? DEFAULT_SETTINGS)
         setError('')
@@ -279,7 +289,8 @@ export function DataProvider({ children }: { children: ReactNode }) {
   return (
     <DataContext.Provider
       value={{
-        areas, projects, tasks, series, blocks, settings, loading, error, reload,
+        areas, projects, tasks, series, blocks, templates, templateItems,
+        settings, loading, error, reload,
         addTask, addSeries, toggleTask, patchTask, removeTask,
         saveSettings, addBlock, removeBlock, planDay,
       }}

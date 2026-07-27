@@ -17,7 +17,14 @@ export default function Lists() {
 
   return (
     <main className="screen">
-      <ScreenHeader title="Lists" />
+      <ScreenHeader
+        title="Lists"
+        action={
+          <Link className="gear" to="/templates" aria-label="Templates">
+            🧩
+          </Link>
+        }
+      />
 
       {areas.length === 0 ? (
         <EmptyState

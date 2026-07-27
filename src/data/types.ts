@@ -120,6 +120,31 @@ export interface Block {
   created_at: string
 }
 
+export interface Template {
+  id: string
+  owner_id: string
+  name: string
+  icon: string
+  area_id: string | null
+  creates: 'project' | 'tasks'
+  use_count: number
+  created_at: string
+}
+
+export interface TemplateItem {
+  id: string
+  owner_id: string
+  template_id: string
+  title: string
+  notes: string
+  sort_order: number
+  parent_index: number | null
+  offset_days: number | null
+  priority: number
+  estimate_min: number | null
+  tags: string[]
+}
+
 export interface Settings {
   id: string
   owner_id: string

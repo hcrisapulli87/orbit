@@ -195,6 +195,44 @@ create table if not exists public.task_blocks (
 
 create index if not exists task_blocks_day_idx on public.task_blocks (owner_id, on_date);
 
+-- ── v5: templates ─────────────────────────────────────────────────────────────
+
+create table if not exists public.task_templates (
+  id         uuid primary key default gen_random_uuid(),
+  owner_id   uuid not null references public.profiles (id) on delete cascade,
+  name       text not null check (length(trim(name)) > 0),
+  icon       text not null default '🧩',
+  area_id    uuid references public.task_areas (id) on delete set null,
+  creates    text not null default 'tasks' check (creates in ('project', 'tasks')),
+  use_count  integer not null default 0,
+  created_at timestamptz not null default now(),
+  unique (owner_id, name)
+);
+
+-- A child table rather than a jsonb blob: templates get edited item by item, and
+-- a blob means read-modify-write races and no per-row realtime. The columns are
+-- deliberately task-shaped so instantiation is a straight map.
+create table if not exists public.task_template_items (
+  id           uuid primary key default gen_random_uuid(),
+  -- owner_id is denormalised onto every table so the RLS loop stays uniform.
+  owner_id     uuid not null references public.profiles (id) on delete cascade,
+  template_id  uuid not null references public.task_templates (id) on delete cascade,
+  title        text not null check (length(trim(title)) > 0),
+  notes        text not null default '',
+  sort_order   integer not null default 0,
+  -- Index of the parent within the template, resolved to a real parent_id at
+  -- instantiation time. Real ids don't exist until the rows are inserted.
+  parent_index smallint,
+  -- Days relative to the anchor date: -1 is "the night before".
+  offset_days  integer,
+  priority     smallint not null default 0 check (priority between 0 and 3),
+  estimate_min integer check (estimate_min > 0),
+  tags         text[] not null default '{}'
+);
+
+create index if not exists task_template_items_template_idx
+  on public.task_template_items (owner_id, template_id, sort_order);
+
 -- ── Seeds ─────────────────────────────────────────────────────────────────────
 -- Orbit is single-user, so the seeds belong to one account. Change the email
 -- below if the owner ever changes. Idempotent: re-running inserts nothing new.
@@ -252,7 +290,8 @@ end $$;
 do $$
 declare t text;
 begin
-  foreach t in array array['task_areas', 'task_projects', 'task_tasks', 'task_series', 'task_settings', 'task_blocks'] loop
+  foreach t in array array['task_areas', 'task_projects', 'task_tasks', 'task_series', 'task_settings', 'task_blocks',
+                           'task_templates', 'task_template_items'] loop
     execute format('alter table public.%I enable row level security', t);
     execute format('drop policy if exists "%s: owner only" on public.%I', t, t);
     execute format(
@@ -268,7 +307,8 @@ end $$;
 do $$
 declare t text;
 begin
-  foreach t in array array['task_areas', 'task_projects', 'task_tasks', 'task_series', 'task_settings', 'task_blocks'] loop
+  foreach t in array array['task_areas', 'task_projects', 'task_tasks', 'task_series', 'task_settings', 'task_blocks',
+                           'task_templates', 'task_template_items'] loop
     if not exists (
       select 1 from pg_publication_tables
       where pubname = 'supabase_realtime' and schemaname = 'public' and tablename = t
