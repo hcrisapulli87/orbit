@@ -16,8 +16,11 @@ export const DEFAULT_SETTINGS: Omit<Settings, 'id' | 'owner_id' | 'created_at'> 
 export async function fetchSettings(): Promise<Settings | null> {
   // maybeSingle: a missing row is a normal state, not an error.
   const { data, error } = await supabase.from('task_settings').select('*').maybeSingle()
-  if (error) throw error
-  return data
+  // 42P01 = undefined_table: the schema hasn't been run this far yet. Settings
+  // are the one thing the app can do entirely without, so fall back to the
+  // defaults rather than taking the whole screen down over them.
+  if (error && error.code !== '42P01') throw error
+  return data ?? null
 }
 
 export async function updateSettings(ownerId: string, patch: Partial<Settings>): Promise<void> {
