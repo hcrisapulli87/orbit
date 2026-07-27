@@ -54,6 +54,53 @@ export interface Task {
   completed_on: string | null
   sort_order: number
   created_at: string
+  /** Set when a recurrence rule produced this row. */
+  series_id: string | null
+  /** Stable identity within the series — the occurrence date. */
+  occurrence_key: string | null
+}
+
+export type RuleType =
+  | 'daily'
+  | 'weekly'
+  | 'monthly_day'
+  | 'monthly_last'
+  | 'monthly_nth'
+  | 'yearly'
+  | 'after_completion'
+
+/**
+ * A recurrence rule plus the task fields its occurrences inherit. Kept separate
+ * from the occurrences themselves so rescheduling one Tuesday never edits the
+ * rule, and so a habit keeps a real history instead of one mutable due date.
+ */
+export interface Series {
+  id: string
+  owner_id: string
+  title: string
+  notes: string
+  project_id: string | null
+  area_id: string | null
+  kind: TaskKind
+  priority: number
+  tags: string[]
+  estimate_min: number | null
+  due_time: string | null
+
+  rule_type: RuleType
+  step: number
+  weekdays: number[]
+  month_day: number | null
+  nth: number | null
+  month: number | null
+  after_n: number | null
+  after_unit: 'day' | 'week' | 'month' | null
+
+  anchor_on: string
+  until_on: string | null
+  lead_days: number
+  active: boolean
+  created_at: string
 }
 
 /** The fields a caller may supply when creating a task. */

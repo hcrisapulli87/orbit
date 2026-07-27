@@ -5,13 +5,15 @@ import { todayISO } from '../domain/day'
 import { fetchAreas } from './areas'
 import { fetchProjects } from './projects'
 import { createTask, fetchTasks, setTaskDone, updateTask } from './tasks'
+import { ensureOccurrences, fetchSeries } from './series'
 import { useRealtime } from './useRealtime'
-import type { Area, NewTask, Project, Task } from './types'
+import type { Area, NewTask, Project, Series, Task } from './types'
 
 interface DataContextValue {
   areas: Area[]
   projects: Project[]
   tasks: Task[]
+  series: Series[]
   loading: boolean
   error: string
   reload: () => void
@@ -22,23 +24,29 @@ interface DataContextValue {
 
 const DataContext = createContext<DataContextValue | undefined>(undefined)
 
-const TABLES = ['task_areas', 'task_projects', 'task_tasks']
+const TABLES = ['task_areas', 'task_projects', 'task_tasks', 'task_series']
 
 export function DataProvider({ children }: { children: ReactNode }) {
   const { user } = useAuth()
   const [areas, setAreas] = useState<Area[]>([])
   const [projects, setProjects] = useState<Project[]>([])
   const [tasks, setTasks] = useState<Task[]>([])
+  const [series, setSeries] = useState<Series[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
 
   const reload = useCallback(() => {
-    Promise.all([fetchAreas(), fetchProjects(), fetchTasks()])
-      .then(([a, p, t]) => {
+    Promise.all([fetchAreas(), fetchProjects(), fetchTasks(), fetchSeries()])
+      .then(([a, p, t, s]) => {
         setAreas(a)
         setProjects(p)
         setTasks(t)
+        setSeries(s)
         setError('')
+        // Top every series up to its horizon. Cheap and idempotent: it inserts
+        // only what's missing, and the realtime echo of any insert settles on
+        // the next pass with nothing left to do.
+        return ensureOccurrences(s, t)
       })
       .catch((e: unknown) => setError(e instanceof Error ? e.message : 'Could not load'))
       .finally(() => setLoading(false))
@@ -104,7 +112,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
 
   return (
     <DataContext.Provider
-      value={{ areas, projects, tasks, loading, error, reload, addTask, toggleTask, patchTask }}
+      value={{ areas, projects, tasks, series, loading, error, reload, addTask, toggleTask, patchTask }}
     >
       {children}
     </DataContext.Provider>

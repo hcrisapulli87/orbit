@@ -89,6 +89,69 @@ create index if not exists task_tasks_parent_idx    on public.task_tasks (owner_
 create index if not exists task_tasks_completed_idx on public.task_tasks (owner_id, completed_on);
 create index if not exists task_tasks_tags_idx      on public.task_tasks using gin (tags);
 
+-- ── v2: recurrence series + materialised occurrences ─────────────────────────
+
+-- A rule lives in its own table rather than as columns on a task, because an
+-- occurrence must be individually reschedulable and annotatable without
+-- mutating the rule, and a habit's history is a stream of occurrences. Putting
+-- the rule on the task means completing it rewrites its own due date, which
+-- destroys history — exactly the flaw in the bot's maintenance_tracker.py,
+-- which stores only last_done and so has no record of when anything was
+-- actually serviced.
+create table if not exists public.task_series (
+  id           uuid primary key default gen_random_uuid(),
+  owner_id     uuid not null references public.profiles (id) on delete cascade,
+  title        text not null check (length(trim(title)) > 0),
+  notes        text not null default '',
+  project_id   uuid references public.task_projects (id) on delete set null,
+  area_id      uuid references public.task_areas (id) on delete set null,
+  kind         text not null default 'task' check (kind in ('task', 'habit', 'event')),
+  priority     smallint not null default 0 check (priority between 0 and 3),
+  tags         text[] not null default '{}',
+  estimate_min integer check (estimate_min > 0),
+  due_time     time,
+
+  rule_type    text not null check (rule_type in
+                 ('daily', 'weekly', 'monthly_day', 'monthly_last',
+                  'monthly_nth', 'yearly', 'after_completion')),
+  step         integer not null default 1 check (step > 0),        -- "every N"
+  weekdays     smallint[] not null default '{}',                   -- 0=Sun … 6=Sat
+  month_day    smallint check (month_day between 1 and 31),
+  nth          smallint check (nth between -1 and 5),              -- -1 = last
+  month        smallint check (month between 1 and 12),
+  after_n      integer check (after_n > 0),
+  after_unit   text check (after_unit in ('day', 'week', 'month')),
+
+  anchor_on    date not null,
+  until_on     date,
+  -- Days before the due date this should start being surfaced: birthdays want
+  -- a week, a rego renewal a fortnight.
+  lead_days    integer not null default 0 check (lead_days >= 0),
+  active       boolean not null default true,
+  created_at   timestamptz not null default now()
+);
+
+create index if not exists task_series_active_idx on public.task_series (owner_id, active);
+
+-- Occurrence columns on the spine. Additive so v1 databases upgrade in place.
+alter table public.task_tasks add column if not exists series_id uuid
+  references public.task_series (id) on delete cascade;
+alter table public.task_tasks add column if not exists occurrence_key text;
+
+-- THE constraint that makes generation idempotent: it can run on every app
+-- open, from any device, forever, with no coordination between them.
+do $$
+begin
+  if not exists (
+    select 1 from pg_constraint where conname = 'task_tasks_series_occurrence_key'
+  ) then
+    alter table public.task_tasks
+      add constraint task_tasks_series_occurrence_key unique (series_id, occurrence_key);
+  end if;
+end $$;
+
+create index if not exists task_tasks_series_idx on public.task_tasks (owner_id, series_id);
+
 -- ── Seeds ─────────────────────────────────────────────────────────────────────
 -- Orbit is single-user, so the seeds belong to one account. Change the email
 -- below if the owner ever changes. Idempotent: re-running inserts nothing new.
@@ -142,7 +205,7 @@ end $$;
 do $$
 declare t text;
 begin
-  foreach t in array array['task_areas', 'task_projects', 'task_tasks'] loop
+  foreach t in array array['task_areas', 'task_projects', 'task_tasks', 'task_series'] loop
     execute format('alter table public.%I enable row level security', t);
     execute format('drop policy if exists "%s: owner only" on public.%I', t, t);
     execute format(
@@ -158,7 +221,7 @@ end $$;
 do $$
 declare t text;
 begin
-  foreach t in array array['task_areas', 'task_projects', 'task_tasks'] loop
+  foreach t in array array['task_areas', 'task_projects', 'task_tasks', 'task_series'] loop
     if not exists (
       select 1 from pg_publication_tables
       where pubname = 'supabase_realtime' and schemaname = 'public' and tablename = t
