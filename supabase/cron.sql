@@ -6,7 +6,11 @@
 --
 -- Prerequisites (Dashboard → Database → Extensions): enable pg_cron and pg_net.
 --
--- Then replace the two placeholders below and run the whole file.
+-- Do NOT fill the placeholders in THIS file — it is committed. Copy it to
+-- supabase/cron.local.sql (gitignored) and edit that, or paste straight into
+-- the SQL editor and fill them there.
+--
+-- Replace the two placeholders and run the whole file.
 --   <PROJECT-REF>   e.g. pxgqfwicnwcwnimeulin
 --   <NOTIFY-SECRET> the same value passed to
 --                   supabase secrets set NOTIFY_SECRET=…

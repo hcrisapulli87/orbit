@@ -4,5 +4,7 @@ dist-ssr
 .env
 .env.local
 *.local
+# Filled-in copy of supabase/cron.sql — contains the real NOTIFY_SECRET.
+supabase/cron.local.sql
 .vercel
 .DS_Store
