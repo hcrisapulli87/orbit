@@ -293,6 +293,120 @@ describe('parseCapture — times', () => {
   })
 })
 
+describe('parseCapture — recurrence', () => {
+  const rule = (text: string) => parseCapture(text, NOW, KNOWN).recurrence
+
+  it('returns null when nothing repeats', () => {
+    expect(rule('call the plumber tomorrow')).toBeNull()
+  })
+
+  it('reads daily rules', () => {
+    expect(rule('vitamins every day')).toMatchObject({ rule_type: 'daily', step: 1 })
+    expect(rule('vitamins daily')).toMatchObject({ rule_type: 'daily', step: 1 })
+    expect(rule('water plants every 3 days')).toMatchObject({ rule_type: 'daily', step: 3 })
+  })
+
+  it('reads weekday-only rules as Mon–Fri', () => {
+    expect(rule('standup every weekday')).toMatchObject({
+      rule_type: 'weekly',
+      step: 1,
+      weekdays: [1, 2, 3, 4, 5],
+    })
+  })
+
+  it('reads weekly rules', () => {
+    expect(rule('review every week')).toMatchObject({ rule_type: 'weekly', step: 1, weekdays: [] })
+    expect(rule('review weekly')).toMatchObject({ rule_type: 'weekly', step: 1 })
+    expect(rule('pay cleaner every 2 weeks')).toMatchObject({ rule_type: 'weekly', step: 2 })
+  })
+
+  it('reads a named weekday', () => {
+    expect(rule('bins every tue')).toMatchObject({ rule_type: 'weekly', step: 1, weekdays: [2] })
+    expect(rule('bins every tuesday')).toMatchObject({ rule_type: 'weekly', weekdays: [2] })
+  })
+
+  it('reads a list of weekdays, however it is punctuated', () => {
+    expect(rule('gym every mon, wed, fri')?.weekdays).toEqual([1, 3, 5])
+    expect(rule('gym every mon/wed/fri')?.weekdays).toEqual([1, 3, 5])
+    expect(rule('gym every mon and fri')?.weekdays).toEqual([1, 5])
+  })
+
+  it('reads an every-N-weeks rule pinned to a weekday', () => {
+    expect(rule('bins every 2 weeks on tue')).toMatchObject({
+      rule_type: 'weekly',
+      step: 2,
+      weekdays: [2],
+    })
+  })
+
+  it('reads monthly rules', () => {
+    expect(rule('rent every month')).toMatchObject({ rule_type: 'monthly_day', step: 1 })
+    expect(rule('rent monthly')).toMatchObject({ rule_type: 'monthly_day', step: 1 })
+    expect(rule('filter every 3 months')).toMatchObject({ rule_type: 'monthly_day', step: 3 })
+  })
+
+  it('reads last-day-of-month', () => {
+    expect(rule('rent last day of month')).toMatchObject({ rule_type: 'monthly_last', step: 1 })
+  })
+
+  it('reads an nth weekday of the month', () => {
+    expect(rule('bins 2nd tuesday of the month')).toMatchObject({
+      rule_type: 'monthly_nth',
+      nth: 2,
+      weekdays: [2],
+    })
+    expect(rule('report last friday of the month')).toMatchObject({
+      rule_type: 'monthly_nth',
+      nth: -1,
+      weekdays: [5],
+    })
+  })
+
+  it('reads yearly rules', () => {
+    expect(rule('rego every year')).toMatchObject({ rule_type: 'yearly', step: 1 })
+    expect(rule('rego yearly')).toMatchObject({ rule_type: 'yearly' })
+    expect(rule('rego annually')).toMatchObject({ rule_type: 'yearly' })
+  })
+
+  // The car-service case: the interval runs from when it was last DONE, not
+  // from a fixed calendar date.
+  it('reads an after-completion rule', () => {
+    expect(rule('car service every 6 months after done')).toMatchObject({
+      rule_type: 'after_completion',
+      after_n: 6,
+      after_unit: 'month',
+    })
+    expect(rule('car service 6 months after completion')).toMatchObject({
+      rule_type: 'after_completion',
+      after_n: 6,
+      after_unit: 'month',
+    })
+    expect(rule('rotate tyres 10 weeks after done')).toMatchObject({
+      after_n: 10,
+      after_unit: 'week',
+    })
+  })
+
+  it('strips the recurrence phrase from the title', () => {
+    expect(parseCapture('bins every tue', NOW, KNOWN).title).toBe('bins')
+    expect(parseCapture('car service every 6 months after done @car', NOW, KNOWN).title)
+      .toBe('car service')
+    expect(parseCapture('gym every mon, wed, fri', NOW, KNOWN).title).toBe('gym')
+  })
+
+  it('does not let a recurrence weekday leak into a one-off due date', () => {
+    // "every tue" is a rule; the first occurrence is the engine's job, not the
+    // parser's, so no due date is invented here.
+    expect(parseCapture('bins every tue', NOW, KNOWN).dueOn).toBeNull()
+  })
+
+  it('still reads a start date alongside a rule', () => {
+    const r = parseCapture('bins every tue from 4/8', NOW, KNOWN)
+    expect(r.recurrence).toMatchObject({ rule_type: 'weekly', weekdays: [2] })
+    expect(r.dueOn).toBe('2026-08-04')
+  })
+})
+
 describe('parseCapture — combinations', () => {
   // The spec's worked example, verbatim.
   it('parses "pay rego fri 3pm !high @errands"', () => {

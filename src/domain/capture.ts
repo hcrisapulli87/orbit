@@ -24,11 +24,39 @@ export interface KnownNames {
   areas: string[]
 }
 
+export type RuleType =
+  | 'daily'
+  | 'weekly'
+  | 'monthly_day'
+  | 'monthly_last'
+  | 'monthly_nth'
+  | 'yearly'
+  | 'after_completion'
+
+/**
+ * A recurrence rule as far as the *words* describe it. month_day, month and the
+ * anchor date are filled in from the task's start date by the recurrence engine,
+ * not guessed here.
+ */
+export interface RecurrenceHint {
+  rule_type: RuleType
+  /** "every N" — 1 unless a number was given. */
+  step: number
+  /** 0 = Sunday … 6 = Saturday. Empty when the rule isn't weekday-pinned. */
+  weekdays: number[]
+  /** For monthly_nth: 1–4, or -1 for last. */
+  nth: number | null
+  after_n: number | null
+  after_unit: 'day' | 'week' | 'month' | null
+}
+
 export interface CaptureResult {
   /** What's left after every recognised token is stripped out. */
   title: string
   dueOn: ISODate | null
   dueTime: ISOTime | null
+  /** Set when the text describes something repeating. */
+  recurrence: RecurrenceHint | null
   /** Priority 0–3, 3 highest. */
   priority: number
   /** Resolved project name, or null. */
@@ -138,17 +166,25 @@ function parseProjects(state: State, known: KnownNames): void {
 // ── dates ────────────────────────────────────────────────────────────────────
 
 // 0 = Sunday … 6 = Saturday, matching weekdayOf().
-const WEEKDAYS = 'sun|mon|tue|wed|thu|fri|sat'
+//
+// Spellings are enumerated longest-first rather than matched as `mon[a-z]*`,
+// because a loose prefix makes "every month" parse as "every Monday". Only the
+// first three letters are significant once a whole token has matched.
+const WEEKDAYS =
+  'sunday|sun|mondays|monday|mon|tuesdays|tuesday|tues|tue|wednesdays|wednesday|weds|wed|' +
+  'thursdays|thursday|thurs|thur|thu|fridays|friday|fri|saturdays|saturday|sat'
 const WEEKDAY_INDEX: Record<string, number> = { sun: 0, mon: 1, tue: 2, wed: 3, thu: 4, fri: 5, sat: 6 }
 
-// Full names are tolerated but only the first three letters are significant,
-// which is why "tuesday" and "tues" both land on the same branch — every
-// weekday pattern below is built as `(sun|mon|…)[a-z]*`.
+/** Every weekday pattern ends here, so "mon" can't swallow the start of "month". */
+const WORD_END = '(?=\\s|$|[,/.])'
+
 const MONTHS = 'jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec'
 const MONTH_INDEX: Record<string, number> = {
   jan: 1, feb: 2, mar: 3, apr: 4, may: 5, jun: 6,
   jul: 7, aug: 8, sep: 9, oct: 10, nov: 11, dec: 12,
 }
+
+const weekdayFromWord = (word: string): number => WEEKDAY_INDEX[word.slice(0, 3).toLowerCase()]
 
 /** The coming occurrence of a weekday. Today's own weekday means next week. */
 function comingWeekday(today: ISODate, weekday: number): { date: ISODate; ambiguous: boolean } {
@@ -189,8 +225,8 @@ function parseDate(state: State, today: ISODate): void {
   if (take(state, /(^|\s)next week(?=\s|$)/i, () => set(addDays(startOfWeek(today, 1), 7)))) return
   if (take(state, /(^|\s)next month(?=\s|$)/i, () => set(addMonthsClamped(today, 1)))) return
 
-  if (take(state, new RegExp(`(^|\\s)next\\s+(${WEEKDAYS})[a-z]*(?=\\s|$)`, 'i'), (m) => {
-    set(nextWeekWeekday(today, WEEKDAY_INDEX[m[2].toLowerCase()]))
+  if (take(state, new RegExp(`(^|\\s)next\\s+(${WEEKDAYS})${WORD_END}`, 'i'), (m) => {
+    set(nextWeekWeekday(today, weekdayFromWord(m[2])))
   })) return
 
   if (take(state, /(^|\s)in\s+(\d{1,3})\s*(day|week|month)s?(?=\s|$)/i, (m) => {
@@ -236,8 +272,8 @@ function parseDate(state: State, today: ISODate): void {
   )) return
 
   // Bare weekday, last so "next fri" and "every fri" get first refusal.
-  take(state, new RegExp(`(^|\\s)(this\\s+)?(${WEEKDAYS})[a-z]*(?=\\s|$)`, 'i'), (m) => {
-    const { date, ambiguous } = comingWeekday(today, WEEKDAY_INDEX[m[3].toLowerCase()])
+  take(state, new RegExp(`(^|\\s)(this\\s+)?(${WEEKDAYS})${WORD_END}`, 'i'), (m) => {
+    const { date, ambiguous } = comingWeekday(today, weekdayFromWord(m[3]))
     set(date)
     // "monday" said on a Monday: this one, or next week's? Undecidable.
     if (ambiguous && !m[2]) state.result.confidence = 'low'
@@ -265,6 +301,94 @@ function setMonthName(
   const date = safeDate(thisYear, month, day)
   if (!date) return false
   set(compareISO(date, today) < 0 ? (safeDate(thisYear + 1, month, day) ?? date) : date)
+}
+
+// ── recurrence ───────────────────────────────────────────────────────────────
+
+/** A weekday list: "mon, wed, fri", "mon/wed/fri", "mon and fri". */
+const WEEKDAY_LIST = `(?:${WEEKDAYS})(?:\\s*(?:,|/|&|and)\\s*(?:${WEEKDAYS}))*`
+
+const ORDINALS: Record<string, number> = {
+  '1': 1, first: 1, '2': 2, second: 2, '3': 3, third: 3, '4': 4, fourth: 4, last: -1,
+}
+
+function weekdaysFromList(list: string): number[] {
+  const found = list.toLowerCase().match(new RegExp(WEEKDAYS, 'gi')) ?? []
+  const out: number[] = []
+  for (const word of found) {
+    const n = weekdayFromWord(word)
+    if (!out.includes(n)) out.push(n)
+  }
+  return out.sort((a, b) => a - b)
+}
+
+/**
+ * Recurrence runs BEFORE date parsing, so "every tue" is read as a rule rather
+ * than as this coming Tuesday. The parser never computes the first occurrence —
+ * that is the recurrence engine's job, from the series anchor.
+ */
+function parseRecurrence(state: State): void {
+  const set = (r: RecurrenceHint) => { state.result.recurrence = r }
+  const base = { step: 1, weekdays: [] as number[], nth: null, after_n: null, after_unit: null }
+
+  // Interval measured from when it was last DONE, not from a calendar date.
+  if (take(state, /(^|\s)(every\s+)?(\d{1,3})\s*(day|week|month)s?\s+after\s+(done|completion|completing)(?=\s|$)/i, (m) => {
+    set({
+      ...base,
+      rule_type: 'after_completion',
+      after_n: Number(m[3]),
+      after_unit: m[4].toLowerCase() as 'day' | 'week' | 'month',
+    })
+  })) return
+
+  if (take(state, /(^|\s)(on the\s+)?last day of (the\s+)?month(?=\s|$)/i, () => {
+    set({ ...base, rule_type: 'monthly_last' })
+  })) return
+
+  if (take(state, new RegExp(
+    `(^|\\s)(?:every\\s+|on the\\s+)?(1st|2nd|3rd|4th|first|second|third|fourth|last)\\s+(${WEEKDAYS})\\s+of (?:the\\s+|every\\s+)?month${WORD_END}`,
+    'i',
+  ), (m) => {
+    set({
+      ...base,
+      rule_type: 'monthly_nth',
+      // Strip the suffix only from digit forms — "last" also ends in "st".
+      nth: ORDINALS[m[2].toLowerCase().replace(/^(\d)(st|nd|rd|th)$/, '$1')],
+      weekdays: [weekdayFromWord(m[3])],
+    })
+  })) return
+
+  if (take(state, /(^|\s)every\s+weekdays?(?=\s|$)/i, () => {
+    set({ ...base, rule_type: 'weekly', weekdays: [1, 2, 3, 4, 5] })
+  })) return
+
+  // "every 2 weeks on tue" — interval and anchor weekday together.
+  if (take(state, new RegExp(`(^|\\s)every\\s+(\\d{1,2})\\s*weeks?\\s+on\\s+(${WEEKDAY_LIST})${WORD_END}`, 'i'), (m) => {
+    set({ ...base, rule_type: 'weekly', step: Number(m[2]), weekdays: weekdaysFromList(m[3]) })
+  })) return
+
+  if (take(state, new RegExp(`(^|\\s)every\\s+(${WEEKDAY_LIST})${WORD_END}`, 'i'), (m) => {
+    set({ ...base, rule_type: 'weekly', weekdays: weekdaysFromList(m[2]) })
+  })) return
+
+  if (take(state, /(^|\s)every\s+(\d{1,3})\s*(day|week|month|year)s?(?=\s|$)/i, (m) => {
+    const step = Number(m[2])
+    const unit = m[3].toLowerCase()
+    set({
+      ...base,
+      step,
+      rule_type: unit === 'day' ? 'daily' : unit === 'week' ? 'weekly' : unit === 'month' ? 'monthly_day' : 'yearly',
+    })
+  })) return
+
+  take(state, /(^|\s)(every\s+(day|week|month|year)|daily|weekly|fortnightly|monthly|yearly|annually)(?=\s|$)/i, (m) => {
+    const word = (m[3] ?? m[2]).toLowerCase()
+    if (word === 'day' || word === 'daily') return set({ ...base, rule_type: 'daily' })
+    if (word === 'week' || word === 'weekly') return set({ ...base, rule_type: 'weekly' })
+    if (word === 'fortnightly') return set({ ...base, rule_type: 'weekly', step: 2 })
+    if (word === 'month' || word === 'monthly') return set({ ...base, rule_type: 'monthly_day' })
+    return set({ ...base, rule_type: 'yearly' })
+  })
 }
 
 // ── times ────────────────────────────────────────────────────────────────────
@@ -326,6 +450,7 @@ export function parseCapture(
       title: '',
       dueOn: null,
       dueTime: null,
+      recurrence: null,
       priority: 0,
       projectHint: null,
       areaHint: null,
@@ -338,6 +463,8 @@ export function parseCapture(
   parsePriority(state)
   parseProjects(state, known)
   parseTags(state)
+  // Recurrence before dates: "every tue" is a rule, not this coming Tuesday.
+  parseRecurrence(state)
   parseDate(state, today)
   parseTime(state)
 
