@@ -103,6 +103,9 @@ export interface Series {
   created_at: string
 }
 
+/** The fields a caller supplies when creating a series. */
+export type NewSeries = Omit<Series, 'id' | 'owner_id' | 'created_at'>
+
 /** The fields a caller may supply when creating a task. */
 export type NewTask = Partial<
   Pick<

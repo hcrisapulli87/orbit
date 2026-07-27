@@ -5,9 +5,10 @@ import { todayISO } from '../domain/day'
 import { fetchAreas } from './areas'
 import { fetchProjects } from './projects'
 import { createTask, fetchTasks, setTaskDone, updateTask } from './tasks'
-import { ensureOccurrences, fetchSeries } from './series'
+import { advanceAfterCompletion, createSeries, ensureOccurrences, fetchSeries, ruleOf } from './series'
+import { nextAfterCompletion } from '../domain/recurrence'
 import { useRealtime } from './useRealtime'
-import type { Area, NewTask, Project, Series, Task } from './types'
+import type { Area, NewSeries, NewTask, Project, Series, Task } from './types'
 
 interface DataContextValue {
   areas: Area[]
@@ -18,6 +19,7 @@ interface DataContextValue {
   error: string
   reload: () => void
   addTask: (task: NewTask) => Promise<void>
+  addSeries: (series: NewSeries) => Promise<void>
   toggleTask: (task: Task) => Promise<void>
   patchTask: (id: string, patch: Partial<Task>) => Promise<void>
 }
@@ -89,12 +91,40 @@ export function DataProvider({ children }: { children: ReactNode }) {
       )
       try {
         await setTaskDone(task.id, done, today)
+
+        // An interval-after-completion series has no horizon — ticking it off
+        // is what schedules the next one, measured from today rather than from
+        // a calendar date. The completed row stays as history, which is the
+        // record maintenance_tracker.py never kept.
+        const parent = task.series_id ? series.find((s) => s.id === task.series_id) : undefined
+        if (done && parent?.rule_type === 'after_completion') {
+          const next = nextAfterCompletion(ruleOf(parent), today)
+          if (next) await advanceAfterCompletion(parent, next)
+          reload()
+        }
       } catch (e: unknown) {
         setError(e instanceof Error ? e.message : 'Could not save that')
         reload()
       }
     },
-    [reload],
+    [reload, series],
+  )
+
+  // A rule, not a task. Its first occurrences are materialised immediately so
+  // the thing you just typed actually appears on Today or the calendar.
+  const addSeries = useCallback(
+    async (input: NewSeries) => {
+      if (!user) return
+      try {
+        const created = await createSeries(user.id, input)
+        await ensureOccurrences([created], [])
+        reload()
+      } catch (e: unknown) {
+        setError(e instanceof Error ? e.message : 'Could not add that')
+        reload()
+      }
+    },
+    [user, reload],
   )
 
   const patchTask = useCallback(
@@ -112,7 +142,10 @@ export function DataProvider({ children }: { children: ReactNode }) {
 
   return (
     <DataContext.Provider
-      value={{ areas, projects, tasks, series, loading, error, reload, addTask, toggleTask, patchTask }}
+      value={{
+        areas, projects, tasks, series, loading, error, reload,
+        addTask, addSeries, toggleTask, patchTask,
+      }}
     >
       {children}
     </DataContext.Provider>

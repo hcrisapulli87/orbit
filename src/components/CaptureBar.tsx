@@ -16,7 +16,7 @@ const PRIORITY_LABEL = ['', 'low', 'med', 'high']
  * labelled "guess" rather than presented as fact.
  */
 export function CaptureBar() {
-  const { projects, areas, addTask } = useData()
+  const { projects, areas, addTask, addSeries } = useData()
   const [open, setOpen] = useState(false)
   const [text, setText] = useState('')
   const inputRef = useRef<HTMLInputElement>(null)
@@ -52,6 +52,43 @@ export function CaptureBar() {
 
     const project = projects.find((p) => p.name === parsed.projectHint)
     const area = areas.find((a) => a.name === parsed.areaHint)
+    // A project implies its area, so an explicit area only applies on its own.
+    const areaId = area?.id ?? project?.area_id ?? null
+
+    // Something that repeats becomes a rule, not a task. The engine then
+    // materialises its occurrences — the parser never invents the first one.
+    if (parsed.recurrence) {
+      const hint = parsed.recurrence
+      await addSeries({
+        title: parsed.title,
+        notes: '',
+        project_id: project?.id ?? null,
+        area_id: areaId,
+        kind: 'task',
+        priority: parsed.priority,
+        tags: parsed.tags,
+        estimate_min: null,
+        due_time: parsed.dueTime,
+        rule_type: hint.rule_type,
+        step: hint.step,
+        weekdays: hint.weekdays,
+        // Left null so the engine reads them off the anchor — one source of
+        // truth for "which day of the month" rather than two that can drift.
+        month_day: null,
+        nth: hint.nth,
+        month: null,
+        after_n: hint.after_n,
+        after_unit: hint.after_unit,
+        // An explicit date means "start from here"; otherwise today.
+        anchor_on: parsed.dueOn ?? today,
+        until_on: null,
+        lead_days: 0,
+        active: true,
+      })
+      setText('')
+      inputRef.current?.focus()
+      return
+    }
 
     await addTask({
       title: parsed.title,
@@ -60,8 +97,7 @@ export function CaptureBar() {
       priority: parsed.priority,
       tags: parsed.tags,
       project_id: project?.id ?? null,
-      // A project implies its area, so an explicit area only applies on its own.
-      area_id: area?.id ?? project?.area_id ?? null,
+      area_id: areaId,
       source: 'capture',
       capture_text: parsed.captureText,
       parse_confidence: parsed.confidence,
