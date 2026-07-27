@@ -28,6 +28,8 @@ export default defineConfig({
         share_target: {
           action: '/',
           method: 'GET',
+          // Redundant for GET, but Chrome warns when it's absent.
+          enctype: 'application/x-www-form-urlencoded',
           params: { title: 'title', text: 'text', url: 'url' },
         },
         icons: [
