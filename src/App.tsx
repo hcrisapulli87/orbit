@@ -8,6 +8,7 @@ import Calendar from './screens/Calendar'
 import Inbox from './screens/Inbox'
 import Lists from './screens/Lists'
 import Habits from './screens/Habits'
+import Settings from './screens/Settings'
 
 export default function App() {
   const { session, loading } = useAuth()
@@ -28,6 +29,7 @@ export default function App() {
           <Route path="/inbox" element={<Inbox />} />
           <Route path="/lists" element={<Lists />} />
           <Route path="/habits" element={<Habits />} />
+          <Route path="/settings" element={<Settings />} />
           <Route path="*" element={<Today />} />
         </Route>
       </Routes>

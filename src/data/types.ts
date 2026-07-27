@@ -103,6 +103,18 @@ export interface Series {
   created_at: string
 }
 
+export interface Settings {
+  id: string
+  owner_id: string
+  /** Minutes of task time per weekday, Sunday first — matches weekdayOf(). */
+  weekday_capacity: number[]
+  day_start: string
+  day_end: string
+  push_lead_min: number
+  digest_enabled: boolean
+  created_at: string
+}
+
 /** The fields a caller supplies when creating a series. */
 export type NewSeries = Omit<Series, 'id' | 'owner_id' | 'created_at'>
 

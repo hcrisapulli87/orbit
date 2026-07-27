@@ -7,17 +7,20 @@ import { fetchProjects } from './projects'
 import { createTask, fetchTasks, setTaskDone, updateTask } from './tasks'
 import { advanceAfterCompletion, createSeries, ensureOccurrences, fetchSeries, ruleOf } from './series'
 import { nextAfterCompletion } from '../domain/recurrence'
+import { DEFAULT_SETTINGS, fetchSettings, updateSettings } from './settings'
 import { useRealtime } from './useRealtime'
-import type { Area, NewSeries, NewTask, Project, Series, Task } from './types'
+import type { Area, NewSeries, NewTask, Project, Series, Settings, Task } from './types'
 
 interface DataContextValue {
   areas: Area[]
   projects: Project[]
   tasks: Task[]
   series: Series[]
+  settings: Omit<Settings, 'id' | 'owner_id' | 'created_at'>
   loading: boolean
   error: string
   reload: () => void
+  saveSettings: (patch: Partial<Settings>) => Promise<void>
   addTask: (task: NewTask) => Promise<void>
   addSeries: (series: NewSeries) => Promise<void>
   toggleTask: (task: Task) => Promise<void>
@@ -26,7 +29,7 @@ interface DataContextValue {
 
 const DataContext = createContext<DataContextValue | undefined>(undefined)
 
-const TABLES = ['task_areas', 'task_projects', 'task_tasks', 'task_series']
+const TABLES = ['task_areas', 'task_projects', 'task_tasks', 'task_series', 'task_settings']
 
 export function DataProvider({ children }: { children: ReactNode }) {
   const { user } = useAuth()
@@ -34,16 +37,19 @@ export function DataProvider({ children }: { children: ReactNode }) {
   const [projects, setProjects] = useState<Project[]>([])
   const [tasks, setTasks] = useState<Task[]>([])
   const [series, setSeries] = useState<Series[]>([])
+  const [settings, setSettings] = useState(DEFAULT_SETTINGS)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
 
   const reload = useCallback(() => {
-    Promise.all([fetchAreas(), fetchProjects(), fetchTasks(), fetchSeries()])
-      .then(([a, p, t, s]) => {
+    Promise.all([fetchAreas(), fetchProjects(), fetchTasks(), fetchSeries(), fetchSettings()])
+      .then(([a, p, t, s, cfg]) => {
         setAreas(a)
         setProjects(p)
         setTasks(t)
         setSeries(s)
+        // A missing settings row is fine — the defaults are the same values.
+        setSettings(cfg ?? DEFAULT_SETTINGS)
         setError('')
         // Top every series up to its horizon. Cheap and idempotent: it inserts
         // only what's missing, and the realtime echo of any insert settles on
@@ -127,6 +133,20 @@ export function DataProvider({ children }: { children: ReactNode }) {
     [user, reload],
   )
 
+  const saveSettings = useCallback(
+    async (patch: Partial<Settings>) => {
+      if (!user) return
+      setSettings((prev) => ({ ...prev, ...patch }))
+      try {
+        await updateSettings(user.id, patch)
+      } catch (e: unknown) {
+        setError(e instanceof Error ? e.message : 'Could not save that')
+        reload()
+      }
+    },
+    [user, reload],
+  )
+
   const patchTask = useCallback(
     async (id: string, patch: Partial<Task>) => {
       setTasks((prev) => prev.map((t) => (t.id === id ? { ...t, ...patch } : t)))
@@ -143,8 +163,8 @@ export function DataProvider({ children }: { children: ReactNode }) {
   return (
     <DataContext.Provider
       value={{
-        areas, projects, tasks, series, loading, error, reload,
-        addTask, addSeries, toggleTask, patchTask,
+        areas, projects, tasks, series, settings, loading, error, reload,
+        addTask, addSeries, toggleTask, patchTask, saveSettings,
       }}
     >
       {children}

@@ -1,25 +1,38 @@
+import { useMemo } from 'react'
+import { Link } from 'react-router-dom'
 import { ScreenHeader } from '../components/ScreenHeader'
 import { TaskRow } from '../components/TaskRow'
 import { EmptyState } from '../components/ui/EmptyState'
-import { useAuth } from '../auth/AuthProvider'
 import { useData } from '../data/DataProvider'
-import { compareISO, relativeLabel, todayISO, weekdayOf } from '../domain/day'
+import { buildToday } from '../domain/planner'
+import { relativeLabel, todayISO, weekdayOf } from '../domain/day'
+import type { Task } from '../data/types'
 
 const WEEKDAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']
 
+const hours = (min: number) =>
+  min >= 60 ? `${Math.floor(min / 60)}h${min % 60 ? ` ${min % 60}m` : ''}` : `${min}m`
+
 export default function Today() {
-  const { signOut } = useAuth()
-  const { tasks, error } = useData()
+  const { tasks, series, settings, error } = useData()
   const today = todayISO()
 
-  // Provisional grouping. The scored planner (must / should / if-time, filled
-  // against the day's capacity) replaces this in Phase 4.
-  const open = tasks.filter((t) => t.status === 'open')
-  const overdue = open.filter((t) => t.kind !== 'event' && t.due_on && compareISO(t.due_on, today) < 0)
-  const dueToday = open.filter((t) => t.due_on === today)
-  const doneToday = tasks.filter((t) => t.status === 'done' && t.completed_on === today)
+  // lead_days lives on the series, so occurrences borrow it for scoring: a
+  // birthday with a week of lead should surface a week out, not on the day.
+  const plannable = useMemo(() => {
+    const leadById = new Map(series.map((s) => [s.id, s.lead_days]))
+    return tasks.map((t) => ({ ...t, lead_days: t.series_id ? leadById.get(t.series_id) ?? 0 : 0 }))
+  }, [tasks, series])
 
-  const nothingToShow = overdue.length + dueToday.length + doneToday.length === 0
+  const capacityMin = settings.weekday_capacity[weekdayOf(today)] ?? 180
+  const plan = useMemo(
+    () => buildToday(plannable, { today, capacityMin }),
+    [plannable, today, capacityMin],
+  )
+
+  const doneToday = tasks.filter((t) => t.status === 'done' && t.completed_on === today)
+  const nothing =
+    plan.must.length + plan.should.length + plan.ifTime.length + plan.events.length === 0
 
   return (
     <main className="screen">
@@ -27,30 +40,52 @@ export default function Today() {
         title={WEEKDAYS[weekdayOf(today)]}
         sub={relativeLabel(today, today)}
         action={
-          <button className="btn btn--small" onClick={() => void signOut()}>
-            Sign out
-          </button>
+          <Link className="gear" to="/settings" aria-label="Settings">
+            ⚙️
+          </Link>
         }
       />
       {error && <p className="error">{error}</p>}
 
-      {nothingToShow && (
-        <EmptyState icon="🌅" title="Nothing due today" hint="Capture something and it will show up here." />
-      )}
-
-      {overdue.length > 0 && (
-        <div className="card">
-          <h2>Overdue</h2>
-          {overdue.map((t) => (
-            <TaskRow key={t.id} task={t} />
-          ))}
+      {plan.overdue.length > 0 && (
+        <div className="banner">
+          <strong>{plan.overdue.length} overdue</strong>
+          <span className="muted"> — oldest first below</span>
         </div>
       )}
 
-      {dueToday.length > 0 && (
+      {/* The capacity bar is a statement of fact, not a nag: when the day
+          doesn't fit it says by how much rather than hiding anything. */}
+      {plan.must.length + plan.should.length > 0 && (
         <div className="card">
-          <h2>Today</h2>
-          {dueToday.map((t) => (
+          <h2>The day</h2>
+          <div className="meter">
+            <div
+              className={`meter__fill${plan.overCapacity > 0 ? ' meter__fill--over' : ''}`}
+              style={{ width: `${Math.min(100, (plan.plannedMin / Math.max(1, capacityMin)) * 100)}%` }}
+            />
+          </div>
+          <p className="muted" style={{ margin: '8px 0 0', fontSize: '0.8rem' }}>
+            {hours(plan.plannedMin)} planned of {hours(capacityMin)}
+            {plan.overCapacity > 0 && (
+              <span className="warn"> · {hours(plan.overCapacity)} more than you have</span>
+            )}
+          </p>
+        </div>
+      )}
+
+      {nothing && (
+        <EmptyState icon="🌅" title="Nothing needs you today" hint="Capture something and it will show up here." />
+      )}
+
+      <Section title="Must" tasks={plan.must} />
+      <Section title="Should" tasks={plan.should} />
+      <Section title="If there's time" tasks={plan.ifTime} />
+
+      {plan.events.length > 0 && (
+        <div className="card">
+          <h2>Coming up</h2>
+          {plan.events.map((t) => (
             <TaskRow key={t.id} task={t} />
           ))}
         </div>
@@ -65,5 +100,17 @@ export default function Today() {
         </div>
       )}
     </main>
+  )
+}
+
+function Section({ title, tasks }: { title: string; tasks: Task[] }) {
+  if (tasks.length === 0) return null
+  return (
+    <div className="card">
+      <h2>{title}</h2>
+      {tasks.map((t) => (
+        <TaskRow key={t.id} task={t} />
+      ))}
+    </div>
   )
 }

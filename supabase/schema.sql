@@ -152,6 +152,26 @@ end $$;
 
 create index if not exists task_tasks_series_idx on public.task_tasks (owner_id, series_id);
 
+-- ── v3: settings ──────────────────────────────────────────────────────────────
+
+-- One row per owner. Lives in Postgres rather than localStorage because the
+-- notification Edge Function needs to read it server-side, and because a phone
+-- and a laptop should agree about how long the day is.
+--
+-- Capacity is a weekday array rather than its own table: a per-day capacity
+-- table would be another field that never gets filled in.
+create table if not exists public.task_settings (
+  id               uuid primary key default gen_random_uuid(),
+  owner_id         uuid not null unique references public.profiles (id) on delete cascade,
+  -- Sunday first, matching weekdayOf() in src/domain/day.ts.
+  weekday_capacity smallint[] not null default '{60,180,180,180,180,180,120}',
+  day_start        time not null default '08:00',
+  day_end          time not null default '21:00',
+  push_lead_min    integer not null default 30 check (push_lead_min >= 0),
+  digest_enabled   boolean not null default true,
+  created_at       timestamptz not null default now()
+);
+
 -- ── Seeds ─────────────────────────────────────────────────────────────────────
 -- Orbit is single-user, so the seeds belong to one account. Change the email
 -- below if the owner ever changes. Idempotent: re-running inserts nothing new.
@@ -196,6 +216,10 @@ begin
   ) as v(name, kind, icon, area_name, sort_order)
   join public.task_areas a on a.owner_id = owner and a.name = v.area_name
   on conflict (owner_id, name) do nothing;
+
+  -- Defaults good enough that Settings never has to be opened.
+  insert into public.task_settings (owner_id) values (owner)
+  on conflict (owner_id) do nothing;
 end $$;
 
 -- ── Row-Level Security ────────────────────────────────────────────────────────
@@ -205,7 +229,7 @@ end $$;
 do $$
 declare t text;
 begin
-  foreach t in array array['task_areas', 'task_projects', 'task_tasks', 'task_series'] loop
+  foreach t in array array['task_areas', 'task_projects', 'task_tasks', 'task_series', 'task_settings'] loop
     execute format('alter table public.%I enable row level security', t);
     execute format('drop policy if exists "%s: owner only" on public.%I', t, t);
     execute format(
@@ -221,7 +245,7 @@ end $$;
 do $$
 declare t text;
 begin
-  foreach t in array array['task_areas', 'task_projects', 'task_tasks', 'task_series'] loop
+  foreach t in array array['task_areas', 'task_projects', 'task_tasks', 'task_series', 'task_settings'] loop
     if not exists (
       select 1 from pg_publication_tables
       where pubname = 'supabase_realtime' and schemaname = 'public' and tablename = t
