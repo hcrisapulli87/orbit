@@ -129,7 +129,184 @@ describe('parseCapture — project hints', () => {
   })
 })
 
+describe('parseCapture — relative dates', () => {
+  const due = (text: string) => parseCapture(text, NOW, KNOWN).dueOn
+
+  it('handles today and tomorrow', () => {
+    expect(due('bins today')).toBe('2026-07-27')
+    expect(due('bins tod')).toBe('2026-07-27')
+    expect(due('bins tomorrow')).toBe('2026-07-28')
+    expect(due('bins tmr')).toBe('2026-07-28')
+  })
+
+  it('reads tonight as today at 7pm', () => {
+    const r = parseCapture('take the bins out tonight', NOW, KNOWN)
+    expect(r.dueOn).toBe('2026-07-27')
+    expect(r.dueTime).toBe('19:00')
+    expect(r.title).toBe('take the bins out')
+  })
+
+  it('handles end of month', () => {
+    expect(due('rent eom')).toBe('2026-07-31')
+    expect(due('rent end of month')).toBe('2026-07-31')
+  })
+
+  it('handles next week and next month', () => {
+    expect(due('review next week')).toBe('2026-08-03') // Monday of next week
+    expect(due('review next month')).toBe('2026-08-27')
+  })
+
+  it('handles "in N days/weeks/months"', () => {
+    expect(due('chase invoice in 3 days')).toBe('2026-07-30')
+    expect(due('chase invoice in 2 weeks')).toBe('2026-08-10')
+    expect(due('chase invoice in 6 months')).toBe('2027-01-27')
+    expect(due('chase invoice in 1 day')).toBe('2026-07-28')
+  })
+})
+
+describe('parseCapture — weekdays', () => {
+  const due = (text: string) => parseCapture(text, NOW, KNOWN).dueOn
+
+  it('picks the coming occurrence of a bare weekday', () => {
+    expect(due('pay rego fri')).toBe('2026-07-31')
+    expect(due('pay rego friday')).toBe('2026-07-31')
+    expect(due('pay rego wed')).toBe('2026-07-29')
+  })
+
+  it('accepts "this <weekday>" as the same thing', () => {
+    expect(due('pay rego this friday')).toBe('2026-07-31')
+  })
+
+  it('reads "next <weekday>" as that day in the FOLLOWING week', () => {
+    expect(due('pay rego next friday')).toBe('2026-08-07')
+    expect(due('pay rego next monday')).toBe('2026-08-03')
+    expect(due('pay rego next sunday')).toBe('2026-08-09')
+  })
+
+  // "monday" said on a Monday is genuinely ambiguous — today or next week?
+  it('marks a bare weekday matching today as a low-confidence guess a week out', () => {
+    const r = parseCapture('standup monday', NOW, KNOWN)
+    expect(r.dueOn).toBe('2026-08-03')
+    expect(r.confidence).toBe('low')
+  })
+})
+
+describe('parseCapture — numeric dates (AU day-first)', () => {
+  it('reads DD/MM in Australian order', () => {
+    const r = parseCapture('rego due 15/8', NOW, KNOWN)
+    expect(r.dueOn).toBe('2026-08-15')
+    expect(r.confidence).toBe('high')
+    expect(r.title).toBe('rego due')
+  })
+
+  it('accepts hyphens as the separator', () => {
+    expect(parseCapture('rego due 15-8', NOW, KNOWN).dueOn).toBe('2026-08-15')
+  })
+
+  it('rolls a date already past into next year', () => {
+    expect(parseCapture('mum bday 5/1', NOW, KNOWN).dueOn).toBe('2027-01-05')
+  })
+
+  it('accepts a 2- or 4-digit year', () => {
+    expect(parseCapture('rego 15/8/27', NOW, KNOWN).dueOn).toBe('2027-08-15')
+    expect(parseCapture('rego 15/08/2027', NOW, KNOWN).dueOn).toBe('2027-08-15')
+  })
+
+  // Both halves ≤ 12, so DD/MM vs MM/DD can't be told apart. We commit to the
+  // Australian reading but say out loud that it's a guess.
+  it('marks an ambiguous numeric pair as low confidence', () => {
+    const r = parseCapture('call bank 3/8', NOW, KNOWN)
+    expect(r.dueOn).toBe('2026-08-03')
+    expect(r.confidence).toBe('low')
+  })
+
+  it('ignores an impossible date rather than guessing at it', () => {
+    const r = parseCapture('order 40/13 widgets', NOW, KNOWN)
+    expect(r.dueOn).toBeNull()
+    expect(r.title).toBe('order 40/13 widgets')
+  })
+})
+
+describe('parseCapture — month names', () => {
+  it('reads "3 mar" and "mar 3" the same way', () => {
+    expect(parseCapture('tax 3 mar', NOW, KNOWN).dueOn).toBe('2027-03-03')
+    expect(parseCapture('tax mar 3', NOW, KNOWN).dueOn).toBe('2027-03-03')
+  })
+
+  it('accepts the full month name', () => {
+    expect(parseCapture('tax 3 march', NOW, KNOWN).dueOn).toBe('2027-03-03')
+  })
+
+  it('keeps a date later this year in this year', () => {
+    expect(parseCapture('trip 14 aug', NOW, KNOWN).dueOn).toBe('2026-08-14')
+  })
+
+  it('accepts an explicit year', () => {
+    expect(parseCapture('trip 14 aug 2028', NOW, KNOWN).dueOn).toBe('2028-08-14')
+  })
+})
+
+describe('parseCapture — times', () => {
+  const at = (text: string) => parseCapture(text, NOW, KNOWN).dueTime
+
+  it('reads am/pm with and without minutes', () => {
+    expect(at('call bank tomorrow 3pm')).toBe('15:00')
+    expect(at('call bank tomorrow 3:30pm')).toBe('15:30')
+    expect(at('gym tomorrow 6am')).toBe('06:00')
+    expect(at('midday thing tomorrow 12pm')).toBe('12:00')
+    expect(at('late thing tomorrow 12am')).toBe('00:00')
+  })
+
+  it('reads 24-hour times', () => {
+    expect(at('call bank tomorrow 15:30')).toBe('15:30')
+    expect(at('call bank tomorrow 08:05')).toBe('08:05')
+  })
+
+  it('reads "at N" with a daytime bias', () => {
+    expect(at('call bank tomorrow at 3')).toBe('15:00')
+    expect(at('call bank tomorrow at 9')).toBe('09:00')
+  })
+
+  it('reads the named times of day', () => {
+    expect(at('call bank tomorrow noon')).toBe('12:00')
+    expect(at('call bank tomorrow midday')).toBe('12:00')
+    expect(at('call bank tomorrow midnight')).toBe('00:00')
+    expect(at('call bank tomorrow morning')).toBe('09:00')
+  })
+
+  it('assumes today when a time is given with no date', () => {
+    const r = parseCapture('call bank 3pm', NOW, KNOWN)
+    expect(r.dueOn).toBe('2026-07-27')
+    expect(r.dueTime).toBe('15:00')
+  })
+
+  it('strips the time token from the title', () => {
+    expect(parseCapture('call bank tomorrow 3pm', NOW, KNOWN).title).toBe('call bank')
+  })
+
+  // A guess we are not sure of must never sharpen into a specific time.
+  it('drops the time entirely when the date is only a guess', () => {
+    const r = parseCapture('call bank 3/8 at 5pm', NOW, KNOWN)
+    expect(r.confidence).toBe('low')
+    expect(r.dueOn).toBe('2026-08-03')
+    expect(r.dueTime).toBeNull()
+  })
+})
+
 describe('parseCapture — combinations', () => {
+  // The spec's worked example, verbatim.
+  it('parses "pay rego fri 3pm !high @errands"', () => {
+    const r = parseCapture('pay rego fri 3pm !high @errands', NOW, KNOWN)
+    expect(r).toMatchObject({
+      title: 'pay rego',
+      dueOn: '2026-07-31',
+      dueTime: '15:00',
+      priority: 3,
+      tags: ['errands'],
+      confidence: 'high',
+    })
+  })
+
   it('is order-independent', () => {
     const a = parseCapture('!high @groceries milk #dairy', NOW, KNOWN)
     const b = parseCapture('milk #dairy @groceries !high', NOW, KNOWN)
