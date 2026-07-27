@@ -353,6 +353,14 @@ body::before {
 .capture__chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
 .capture__hint { margin: 8px 4px 2px; font-size: 0.72rem; color: var(--dim); }
 
+/* ---- offline banner ---- */
+.offline {
+  position: fixed; top: 0; left: 0; right: 0; z-index: 70;
+  padding: calc(6px + env(safe-area-inset-top)) 12px 6px;
+  background: var(--warn); color: #2a1a00;
+  font-size: 0.78rem; font-weight: 700; text-align: center;
+}
+
 /* ---- loading / empty ---- */
 .spinner-wrap { min-height: 100dvh; display: grid; place-items: center; color: var(--dim); }
 .empty { text-align: center; color: var(--dim); padding: 28px 12px; }

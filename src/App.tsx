@@ -2,6 +2,8 @@ import { Route, Routes } from 'react-router-dom'
 import { useAuth } from './auth/AuthProvider'
 import { DataProvider } from './data/DataProvider'
 import { Layout } from './components/Layout'
+import { ErrorBoundary } from './components/ErrorBoundary'
+import { OfflineBanner } from './components/OfflineBanner'
 import Login from './screens/Login'
 import Today from './screens/Today'
 import Calendar from './screens/Calendar'
@@ -23,22 +25,27 @@ export default function App() {
   if (!session) return <Login />
 
   // DataProvider sits inside the gate, so every data hook can assume a user.
+  // The boundary wraps the routes rather than the whole tree, so a throw in a
+  // screen still leaves the app shell and the reload button standing.
   return (
     <DataProvider>
-      <Routes>
-        <Route element={<Layout />}>
-          <Route path="/" element={<Today />} />
-          <Route path="/calendar" element={<Calendar />} />
-          <Route path="/inbox" element={<Inbox />} />
-          <Route path="/lists" element={<Lists />} />
-          <Route path="/habits" element={<Habits />} />
-          <Route path="/settings" element={<Settings />} />
-          <Route path="/project/:id" element={<ProjectDetail />} />
-          <Route path="/task/:id" element={<TaskDetail />} />
-          <Route path="/templates" element={<Templates />} />
-          <Route path="*" element={<Today />} />
-        </Route>
-      </Routes>
+      <OfflineBanner />
+      <ErrorBoundary>
+        <Routes>
+          <Route element={<Layout />}>
+            <Route path="/" element={<Today />} />
+            <Route path="/calendar" element={<Calendar />} />
+            <Route path="/inbox" element={<Inbox />} />
+            <Route path="/lists" element={<Lists />} />
+            <Route path="/habits" element={<Habits />} />
+            <Route path="/settings" element={<Settings />} />
+            <Route path="/project/:id" element={<ProjectDetail />} />
+            <Route path="/task/:id" element={<TaskDetail />} />
+            <Route path="/templates" element={<Templates />} />
+            <Route path="*" element={<Today />} />
+          </Route>
+        </Routes>
+      </ErrorBoundary>
     </DataProvider>
   )
 }
