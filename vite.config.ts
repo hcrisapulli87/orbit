@@ -7,6 +7,11 @@ export default defineConfig({
   plugins: [
     react(),
     VitePWA({
+      // injectManifest rather than generateSW: a push listener has to live
+      // inside the service worker, and generateSW produces one we can't add to.
+      strategies: 'injectManifest',
+      srcDir: 'src',
+      filename: 'sw.ts',
       registerType: 'autoUpdate',
       includeAssets: ['favicon.svg', 'apple-touch-icon.png'],
       manifest: {
