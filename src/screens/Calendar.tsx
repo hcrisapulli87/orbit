@@ -6,14 +6,32 @@ import { DayColumn, HOUR_PX, minutesToTime, timedEntriesFor } from '../component
 import { useData } from '../data/DataProvider'
 import { monthGrid, monthLabel, weekDays } from '../domain/calendarGrid'
 import { addDays, addMonthsClamped, formatTime, parseTimeToMinutes, relativeLabel, todayISO } from '../domain/day'
-import type { Task } from '../data/types'
+import type { Block, Task } from '../data/types'
+import type { TimedEntry } from '../components/calendar/DayColumn'
 
 type View = 'day' | 'week' | 'month'
 
 const DAY_INITIALS = ['M', 'T', 'W', 'T', 'F', 'S', 'S']
 
+/** A block becomes a timed entry; its title is its label or its task's. */
+function blockEntries(blocks: Block[], tasks: Task[]): TimedEntry[] {
+  return blocks.flatMap((b) => {
+    const start = parseTimeToMinutes(b.start_time)
+    const end = parseTimeToMinutes(b.end_time)
+    if (start === null || end === null) return []
+    const task = b.task_id ? tasks.find((t) => t.id === b.task_id) : undefined
+    return [{
+      id: b.id,
+      title: b.label || task?.title || 'Blocked',
+      startMin: start,
+      endMin: end,
+      kind: 'block' as const,
+    }]
+  })
+}
+
 export default function Calendar() {
-  const { tasks, settings } = useData()
+  const { tasks, blocks, settings } = useData()
   const today = todayISO()
   const [view, setView] = useState<View>('month')
   const [cursor, setCursor] = useState(today)
@@ -29,6 +47,16 @@ export default function Calendar() {
     }
     return map
   }, [tasks])
+
+  const blocksByDay = useMemo(() => {
+    const map = new Map<string, Block[]>()
+    for (const b of blocks) {
+      const list = map.get(b.on_date) ?? []
+      list.push(b)
+      map.set(b.on_date, list)
+    }
+    return map
+  }, [blocks])
 
   const dayStartMin = parseTimeToMinutes(settings.day_start) ?? 480
   const dayEndMin = parseTimeToMinutes(settings.day_end) ?? 1260
@@ -84,6 +112,8 @@ export default function Calendar() {
           cursor={cursor}
           today={today}
           byDay={byDay}
+          blocksByDay={blocksByDay}
+          tasks={tasks}
           dayStartMin={dayStartMin}
           dayEndMin={dayEndMin}
           onPick={(d) => {
@@ -94,7 +124,14 @@ export default function Calendar() {
       )}
 
       {view === 'day' && (
-        <DayView date={cursor} byDay={byDay} dayStartMin={dayStartMin} dayEndMin={dayEndMin} />
+        <DayView
+          date={cursor}
+          byDay={byDay}
+          blocks={blocksByDay.get(cursor) ?? []}
+          tasks={tasks}
+          dayStartMin={dayStartMin}
+          dayEndMin={dayEndMin}
+        />
       )}
     </main>
   )
@@ -163,6 +200,8 @@ function WeekView({
   cursor,
   today,
   byDay,
+  blocksByDay,
+  tasks,
   dayStartMin,
   dayEndMin,
   onPick,
@@ -170,6 +209,8 @@ function WeekView({
   cursor: string
   today: string
   byDay: Map<string, Task[]>
+  blocksByDay: Map<string, Block[]>
+  tasks: Task[]
   dayStartMin: number
   dayEndMin: number
   onPick: (date: string) => void
@@ -198,7 +239,10 @@ function WeekView({
                 <strong>{Number(date.slice(8))}</strong>
               </button>
               <DayColumn
-                entries={timedEntriesFor(items)}
+                entries={[
+                  ...timedEntriesFor(items),
+                  ...blockEntries(blocksByDay.get(date) ?? [], tasks),
+                ]}
                 dayStartMin={dayStartMin}
                 dayEndMin={dayEndMin}
               />
@@ -213,17 +257,44 @@ function WeekView({
 function DayView({
   date,
   byDay,
+  blocks,
+  tasks,
   dayStartMin,
   dayEndMin,
 }: {
   date: string
   byDay: Map<string, Task[]>
+  blocks: Block[]
+  tasks: Task[]
   dayStartMin: number
   dayEndMin: number
 }) {
+  const { addBlock, removeBlock } = useData()
+  const [slot, setSlot] = useState<number | null>(null)
+
   const items = byDay.get(date) ?? []
   const untimed = items.filter((t) => !t.due_time)
-  const entries = timedEntriesFor(items)
+  const entries = [...timedEntriesFor(items), ...blockEntries(blocks, tasks)]
+
+  // What you'd plausibly block out: this day's open work, then anything else
+  // still open. No search box — the list is short enough to scan.
+  const candidates = [
+    ...items.filter((t) => t.status === 'open' && t.kind !== 'event'),
+    ...tasks.filter((t) => t.status === 'open' && t.kind !== 'event' && t.due_on !== date),
+  ].slice(0, 12)
+
+  const block = async (task: Task | null) => {
+    if (slot === null) return
+    await addBlock({
+      on_date: date,
+      start_time: minutesToTime(slot),
+      end_time: minutesToTime(Math.min(slot + 60, 24 * 60 - 1)),
+      task_id: task?.id ?? null,
+      label: task ? '' : 'Busy',
+      source: 'manual',
+    })
+    setSlot(null)
+  }
 
   return (
     <>
@@ -249,10 +320,59 @@ function DayView({
             ))}
           </div>
           <div className="weekgrid__day">
-            <DayColumn entries={entries} dayStartMin={dayStartMin} dayEndMin={dayEndMin} />
+            <DayColumn
+              entries={entries}
+              dayStartMin={dayStartMin}
+              dayEndMin={dayEndMin}
+              onSlotTap={setSlot}
+            />
           </div>
         </div>
+        <p className="muted" style={{ margin: '10px 0 0', fontSize: '0.75rem' }}>
+          Tap an empty hour to block it out.
+        </p>
       </div>
+
+      {blocks.length > 0 && (
+        <div className="card">
+          <h2>Blocks</h2>
+          {blocks.map((b) => (
+            <div className="row--between setting-row" key={b.id}>
+              <span>
+                <strong>{formatTime(b.start_time)}</strong>{' '}
+                {b.label || tasks.find((t) => t.id === b.task_id)?.title || 'Blocked'}
+                {b.source === 'planner' && <span className="muted"> · auto</span>}
+              </span>
+              <button className="btn btn--small" onClick={() => void removeBlock(b.id)}>
+                Remove
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {slot !== null && (
+        <div className="sheet" role="dialog" aria-label="Block out time">
+          <div className="sheet__panel">
+            <div className="row--between">
+              <strong>Block {formatTime(minutesToTime(slot))}</strong>
+              <button className="btn btn--small" onClick={() => setSlot(null)}>
+                Cancel
+              </button>
+            </div>
+            <div className="triage" style={{ marginTop: 12 }}>
+              <button className="chip chip--action" onClick={() => void block(null)}>
+                Busy
+              </button>
+              {candidates.map((t) => (
+                <button key={t.id} className="chip chip--action" onClick={() => void block(t)}>
+                  {t.title}
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
     </>
   )
 }

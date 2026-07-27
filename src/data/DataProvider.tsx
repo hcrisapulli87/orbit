@@ -8,19 +8,23 @@ import { createTask, fetchTasks, setTaskDone, updateTask } from './tasks'
 import { advanceAfterCompletion, createSeries, ensureOccurrences, fetchSeries, ruleOf } from './series'
 import { nextAfterCompletion } from '../domain/recurrence'
 import { DEFAULT_SETTINGS, fetchSettings, updateSettings } from './settings'
+import { createBlock, deleteBlock, fetchBlocks } from './blocks'
 import { useRealtime } from './useRealtime'
-import type { Area, NewSeries, NewTask, Project, Series, Settings, Task } from './types'
+import type { Area, Block, NewSeries, NewTask, Project, Series, Settings, Task } from './types'
 
 interface DataContextValue {
   areas: Area[]
   projects: Project[]
   tasks: Task[]
   series: Series[]
+  blocks: Block[]
   settings: Omit<Settings, 'id' | 'owner_id' | 'created_at'>
   loading: boolean
   error: string
   reload: () => void
   saveSettings: (patch: Partial<Settings>) => Promise<void>
+  addBlock: (block: Omit<Block, 'id' | 'owner_id' | 'created_at'>) => Promise<void>
+  removeBlock: (id: string) => Promise<void>
   addTask: (task: NewTask) => Promise<void>
   addSeries: (series: NewSeries) => Promise<void>
   toggleTask: (task: Task) => Promise<void>
@@ -29,7 +33,9 @@ interface DataContextValue {
 
 const DataContext = createContext<DataContextValue | undefined>(undefined)
 
-const TABLES = ['task_areas', 'task_projects', 'task_tasks', 'task_series', 'task_settings']
+const TABLES = [
+  'task_areas', 'task_projects', 'task_tasks', 'task_series', 'task_settings', 'task_blocks',
+]
 
 export function DataProvider({ children }: { children: ReactNode }) {
   const { user } = useAuth()
@@ -37,17 +43,21 @@ export function DataProvider({ children }: { children: ReactNode }) {
   const [projects, setProjects] = useState<Project[]>([])
   const [tasks, setTasks] = useState<Task[]>([])
   const [series, setSeries] = useState<Series[]>([])
+  const [blocks, setBlocks] = useState<Block[]>([])
   const [settings, setSettings] = useState(DEFAULT_SETTINGS)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
 
   const reload = useCallback(() => {
-    Promise.all([fetchAreas(), fetchProjects(), fetchTasks(), fetchSeries(), fetchSettings()])
-      .then(([a, p, t, s, cfg]) => {
+    Promise.all([
+      fetchAreas(), fetchProjects(), fetchTasks(), fetchSeries(), fetchSettings(), fetchBlocks(),
+    ])
+      .then(([a, p, t, s, cfg, b]) => {
         setAreas(a)
         setProjects(p)
         setTasks(t)
         setSeries(s)
+        setBlocks(b)
         // A missing settings row is fine — the defaults are the same values.
         setSettings(cfg ?? DEFAULT_SETTINGS)
         setError('')
@@ -147,6 +157,32 @@ export function DataProvider({ children }: { children: ReactNode }) {
     [user, reload],
   )
 
+  const addBlock = useCallback(
+    async (block: Omit<Block, 'id' | 'owner_id' | 'created_at'>) => {
+      if (!user) return
+      try {
+        await createBlock(user.id, block)
+        reload()
+      } catch (e: unknown) {
+        setError(e instanceof Error ? e.message : 'Could not add that block')
+      }
+    },
+    [user, reload],
+  )
+
+  const removeBlock = useCallback(
+    async (id: string) => {
+      setBlocks((prev) => prev.filter((b) => b.id !== id))
+      try {
+        await deleteBlock(id)
+      } catch (e: unknown) {
+        setError(e instanceof Error ? e.message : 'Could not remove that block')
+        reload()
+      }
+    },
+    [reload],
+  )
+
   const patchTask = useCallback(
     async (id: string, patch: Partial<Task>) => {
       setTasks((prev) => prev.map((t) => (t.id === id ? { ...t, ...patch } : t)))
@@ -163,8 +199,8 @@ export function DataProvider({ children }: { children: ReactNode }) {
   return (
     <DataContext.Provider
       value={{
-        areas, projects, tasks, series, settings, loading, error, reload,
-        addTask, addSeries, toggleTask, patchTask, saveSettings,
+        areas, projects, tasks, series, blocks, settings, loading, error, reload,
+        addTask, addSeries, toggleTask, patchTask, saveSettings, addBlock, removeBlock,
       }}
     >
       {children}

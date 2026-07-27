@@ -172,6 +172,29 @@ create table if not exists public.task_settings (
   created_at       timestamptz not null default now()
 );
 
+-- ── v4: time blocks ───────────────────────────────────────────────────────────
+
+-- A block is its own row rather than start/end columns on a task, because one
+-- task can be blocked twice in a day (two sessions), a block can be non-task
+-- time (gym, work hours), and the auto-planner rewrites its own suggestions
+-- without touching any task. Columns on the task would forbid all three.
+create table if not exists public.task_blocks (
+  id         uuid primary key default gen_random_uuid(),
+  owner_id   uuid not null references public.profiles (id) on delete cascade,
+  on_date    date not null,
+  start_time time not null,
+  end_time   time not null,
+  task_id    uuid references public.task_tasks (id) on delete cascade,
+  label      text not null default '',
+  -- 'planner' rows are the auto-plan's own workings: it clears and rebuilds
+  -- those and never touches anything placed by hand.
+  source     text not null default 'manual' check (source in ('manual', 'planner')),
+  created_at timestamptz not null default now(),
+  constraint task_blocks_ends_after_start check (end_time > start_time)
+);
+
+create index if not exists task_blocks_day_idx on public.task_blocks (owner_id, on_date);
+
 -- ── Seeds ─────────────────────────────────────────────────────────────────────
 -- Orbit is single-user, so the seeds belong to one account. Change the email
 -- below if the owner ever changes. Idempotent: re-running inserts nothing new.
@@ -229,7 +252,7 @@ end $$;
 do $$
 declare t text;
 begin
-  foreach t in array array['task_areas', 'task_projects', 'task_tasks', 'task_series', 'task_settings'] loop
+  foreach t in array array['task_areas', 'task_projects', 'task_tasks', 'task_series', 'task_settings', 'task_blocks'] loop
     execute format('alter table public.%I enable row level security', t);
     execute format('drop policy if exists "%s: owner only" on public.%I', t, t);
     execute format(
@@ -245,7 +268,7 @@ end $$;
 do $$
 declare t text;
 begin
-  foreach t in array array['task_areas', 'task_projects', 'task_tasks', 'task_series', 'task_settings'] loop
+  foreach t in array array['task_areas', 'task_projects', 'task_tasks', 'task_series', 'task_settings', 'task_blocks'] loop
     if not exists (
       select 1 from pg_publication_tables
       where pubname = 'supabase_realtime' and schemaname = 'public' and tablename = t

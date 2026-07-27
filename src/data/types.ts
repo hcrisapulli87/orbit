@@ -103,6 +103,23 @@ export interface Series {
   created_at: string
 }
 
+/**
+ * A slot of time. Separate from the task because one task can be blocked twice,
+ * a block can be non-task time, and the planner rewrites its own without
+ * touching the tasks.
+ */
+export interface Block {
+  id: string
+  owner_id: string
+  on_date: string
+  start_time: string
+  end_time: string
+  task_id: string | null
+  label: string
+  source: 'manual' | 'planner'
+  created_at: string
+}
+
 export interface Settings {
   id: string
   owner_id: string
