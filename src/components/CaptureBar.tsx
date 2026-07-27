@@ -2,10 +2,21 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import type { FormEvent, KeyboardEvent } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { useData } from '../data/DataProvider'
-import { describeRecurrence, parseCapture } from '../domain/capture'
+import { describeRecurrence, inferEvent, parseCapture } from '../domain/capture'
+import type { RecurrenceHint } from '../domain/capture'
 import { formatTime, relativeLabel, todayISO } from '../domain/day'
 
 const PRIORITY_LABEL = ['', 'low', 'med', 'high']
+
+/** The implied rule for an important date nobody said "every year" about. */
+const YEARLY: RecurrenceHint = {
+  rule_type: 'yearly',
+  step: 1,
+  weekdays: [],
+  nth: null,
+  after_n: null,
+  after_unit: null,
+}
 
 /**
  * The single way into the app. There is no new-task form: one text box, live
@@ -29,6 +40,7 @@ export function CaptureBar() {
   const parsed = useMemo(() => parseCapture(text, new Date(), known), [text, known])
   const today = todayISO()
   const guessing = parsed.confidence === 'low'
+  const event = inferEvent(parsed.title)
 
   // PWA share target: Android hands us ?title=&text=&url= on a GET share.
   // Pre-fill and open rather than saving silently, so a share is still a
@@ -54,17 +66,21 @@ export function CaptureBar() {
     const area = areas.find((a) => a.name === parsed.areaHint)
     // A project implies its area, so an explicit area only applies on its own.
     const areaId = area?.id ?? project?.area_id ?? null
+    const datesArea = areas.find((a) => a.name === 'Dates')
 
     // Something that repeats becomes a rule, not a task. The engine then
     // materialises its occurrences — the parser never invents the first one.
-    if (parsed.recurrence) {
-      const hint = parsed.recurrence
+    //
+    // A birthday or anniversary is a yearly rule even when nobody typed "every
+    // year": that's the whole point of an important date. It's typed once.
+    if (parsed.recurrence || (event.isEvent && parsed.dueOn)) {
+      const hint = parsed.recurrence ?? YEARLY
       await addSeries({
         title: parsed.title,
         notes: '',
         project_id: project?.id ?? null,
-        area_id: areaId,
-        kind: 'task',
+        area_id: areaId ?? datesArea?.id ?? null,
+        kind: event.isEvent ? 'event' : 'task',
         priority: parsed.priority,
         tags: parsed.tags,
         estimate_min: null,
@@ -82,7 +98,7 @@ export function CaptureBar() {
         // An explicit date means "start from here"; otherwise today.
         anchor_on: parsed.dueOn ?? today,
         until_on: null,
-        lead_days: 0,
+        lead_days: event.leadDays,
         active: true,
       })
       setText('')
@@ -164,6 +180,10 @@ export function CaptureBar() {
 
             {parsed.recurrence && (
               <span className="chip">🔁 {describeRecurrence(parsed.recurrence)}</span>
+            )}
+
+            {event.isEvent && parsed.dueOn && !parsed.recurrence && (
+              <span className="chip">🎂 every year</span>
             )}
 
             {parsed.priority > 0 && <span className="chip">{PRIORITY_LABEL[parsed.priority]}</span>}

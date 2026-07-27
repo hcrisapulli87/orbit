@@ -470,6 +470,31 @@ export function describeRecurrence(hint: RecurrenceHint): string {
   }
 }
 
+// ── important dates ──────────────────────────────────────────────────────────
+
+/** Words that mean "this is a date to remember", not a job to do. */
+const EVENT_WORDS = /\b(birthdays?|bday|b'day|anniversary|anniversaries)\b/i
+
+export interface EventHint {
+  isEvent: boolean
+  /** How many days ahead it should start being surfaced. */
+  leadDays: number
+}
+
+/**
+ * Decide whether a captured line is an important date rather than a task.
+ *
+ * Inferred from the words already typed rather than asked for in a field,
+ * because a field would go unfilled and the feature would die. Getting it wrong
+ * only costs a checkbox, and the type is editable afterwards.
+ *
+ * Renewals (rego, insurance) are deliberately NOT events — they're jobs with a
+ * deadline, so they keep their checkbox.
+ */
+export function inferEvent(title: string): EventHint {
+  return EVENT_WORDS.test(title) ? { isEvent: true, leadDays: 7 } : { isEvent: false, leadDays: 0 }
+}
+
 // ── entry point ──────────────────────────────────────────────────────────────
 
 /**

@@ -1,5 +1,5 @@
 import { useData } from '../data/DataProvider'
-import { compareISO, formatTime, relativeLabel, todayISO } from '../domain/day'
+import { compareISO, daysBetween, formatTime, relativeLabel, todayISO } from '../domain/day'
 import type { Task } from '../data/types'
 
 /**
@@ -44,6 +44,11 @@ export function TaskRow({ task, showProject = true }: { task: Task; showProject?
               {relativeLabel(task.due_on, today)}
               {task.due_time && ` · ${formatTime(task.due_time)}`}
             </span>
+          )}
+          {/* A birthday two months out is only useful as a countdown — the
+              date alone doesn't tell you how long you have to buy something. */}
+          {isEvent && task.due_on && daysBetween(today, task.due_on) > 1 && (
+            <span className="chip">in {daysBetween(today, task.due_on)} days</span>
           )}
           {project && (
             <span className="chip">

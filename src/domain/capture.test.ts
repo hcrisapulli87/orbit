@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { describeRecurrence, parseCapture } from './capture'
+import { describeRecurrence, inferEvent, parseCapture } from './capture'
 
 const NOW = new Date(2026, 6, 27, 9, 0) // Monday 27 July 2026, 09:00 local
 
@@ -428,6 +428,30 @@ describe('describeRecurrence', () => {
     expect(describe_('rego every year')).toBe('every year')
     expect(describe_('car service every 6 months after done')).toBe("6 months after it's done")
     expect(describe_('rotate tyres 1 month after done')).toBe("1 month after it's done")
+  })
+})
+
+describe('inferEvent', () => {
+  it('recognises birthdays and anniversaries', () => {
+    expect(inferEvent('mum birthday').isEvent).toBe(true)
+    expect(inferEvent('Mum bday').isEvent).toBe(true)
+    expect(inferEvent("dad's b'day").isEvent).toBe(true)
+    expect(inferEvent('our anniversary').isEvent).toBe(true)
+  })
+
+  it('gives an event a week of lead time', () => {
+    expect(inferEvent('mum birthday').leadDays).toBe(7)
+  })
+
+  // A renewal is a job with a deadline, so it keeps its checkbox.
+  it('does not treat renewals as events', () => {
+    expect(inferEvent('rego renewal').isEvent).toBe(false)
+    expect(inferEvent('car insurance due').isEvent).toBe(false)
+    expect(inferEvent('pay rent').isEvent).toBe(false)
+  })
+
+  it('does not fire on a word that merely contains one', () => {
+    expect(inferEvent('birthdaycake supplier quote').isEvent).toBe(false)
   })
 })
 
