@@ -165,6 +165,12 @@ export function parseTimeToMinutes(time: string | null | undefined): number | nu
   return h * 60 + m
 }
 
+/** Minutes since midnight back to "HH:MM". */
+export function minutesToTime(minutes: number): ISOTime {
+  const clamped = Math.max(0, Math.min(24 * 60 - 1, Math.round(minutes)))
+  return `${String(Math.floor(clamped / 60)).padStart(2, '0')}:${String(clamped % 60).padStart(2, '0')}`
+}
+
 /** "15:00" → "3pm", "15:30" → "3:30pm". Empty string for anything unparseable. */
 export function formatTime(time: string | null | undefined): string {
   const minutes = parseTimeToMinutes(time)

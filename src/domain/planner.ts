@@ -96,6 +96,73 @@ export function scoreTask(task: Plannable, today: ISODate): number {
   return score
 }
 
+export interface Interval {
+  start: number
+  end: number
+}
+
+export interface BlockSuggestion {
+  taskId: string
+  startMin: number
+  endMin: number
+}
+
+/**
+ * Suggest where today's work could actually go.
+ *
+ * Deliberately conservative: it schedules in plan order, never splits a task
+ * across gaps, never overruns the end of the day, and silently gives up on
+ * anything that doesn't fit rather than squeezing it in. A suggestion you have
+ * to undo is worse than no suggestion.
+ *
+ * `busy` is everything already committed — manual blocks and tasks that carry
+ * a time of day. `alreadyBlocked` keeps it from double-booking work you have
+ * placed by hand.
+ */
+export function suggestBlocks(
+  tasks: Plannable[],
+  opts: {
+    today: ISODate
+    dayStartMin: number
+    dayEndMin: number
+    busy: Interval[]
+    alreadyBlocked?: string[]
+  },
+): BlockSuggestion[] {
+  const { today, dayStartMin, dayEndMin, busy, alreadyBlocked = [] } = opts
+  const skip = new Set(alreadyBlocked)
+
+  const plan = buildToday(tasks, { today, capacityMin: dayEndMin - dayStartMin })
+  const queue = [...plan.must, ...plan.should].filter((t) => !skip.has(t.id))
+
+  // Working copy of what's occupied; each placement adds to it.
+  const taken: Interval[] = [...busy].sort((a, b) => a.start - b.start)
+  const out: BlockSuggestion[] = []
+
+  for (const task of queue) {
+    const need = Math.max(15, defaultEstimateFor(task))
+    const slot = firstGap(taken, dayStartMin, dayEndMin, need)
+    if (!slot) continue
+
+    out.push({ taskId: task.id, startMin: slot, endMin: slot + need })
+    taken.push({ start: slot, end: slot + need })
+    taken.sort((a, b) => a.start - b.start)
+  }
+
+  return out
+}
+
+/** Earliest point in the day with `need` free minutes after it. */
+function firstGap(taken: Interval[], dayStart: number, dayEnd: number, need: number): number | null {
+  let cursor = dayStart
+  for (const interval of taken) {
+    if (interval.end <= cursor) continue
+    if (interval.start - cursor >= need) return cursor
+    cursor = Math.max(cursor, interval.end)
+  }
+  return dayEnd - cursor >= need ? cursor : null
+}
+
 /**
  * Build the day.
  *

@@ -8,7 +8,10 @@ import { createTask, fetchTasks, setTaskDone, updateTask } from './tasks'
 import { advanceAfterCompletion, createSeries, ensureOccurrences, fetchSeries, ruleOf } from './series'
 import { nextAfterCompletion } from '../domain/recurrence'
 import { DEFAULT_SETTINGS, fetchSettings, updateSettings } from './settings'
-import { createBlock, deleteBlock, fetchBlocks } from './blocks'
+import { createBlock, deleteBlock, fetchBlocks, replacePlannerBlocks } from './blocks'
+import { suggestBlocks } from '../domain/planner'
+import { minutesToTime, parseTimeToMinutes } from '../domain/day'
+import { defaultEstimateFor } from '../domain/planner'
 import { useRealtime } from './useRealtime'
 import type { Area, Block, NewSeries, NewTask, Project, Series, Settings, Task } from './types'
 
@@ -25,6 +28,7 @@ interface DataContextValue {
   saveSettings: (patch: Partial<Settings>) => Promise<void>
   addBlock: (block: Omit<Block, 'id' | 'owner_id' | 'created_at'>) => Promise<void>
   removeBlock: (id: string) => Promise<void>
+  planDay: (date: string) => Promise<void>
   addTask: (task: NewTask) => Promise<void>
   addSeries: (series: NewSeries) => Promise<void>
   toggleTask: (task: Task) => Promise<void>
@@ -183,6 +187,66 @@ export function DataProvider({ children }: { children: ReactNode }) {
     [reload],
   )
 
+  /**
+   * Lay today's work into the free gaps.
+   *
+   * Only source='planner' rows are cleared and rebuilt, so re-planning never
+   * disturbs a block placed by hand — and anything you blocked yourself is
+   * treated as committed time rather than being scheduled twice.
+   */
+  const planDay = useCallback(
+    async (date: string) => {
+      if (!user) return
+      try {
+        const dayBlocks = blocks.filter((b) => b.on_date === date)
+        const manual = dayBlocks.filter((b) => b.source === 'manual')
+
+        const busy = manual.flatMap((b) => {
+          const start = parseTimeToMinutes(b.start_time)
+          const end = parseTimeToMinutes(b.end_time)
+          return start !== null && end !== null ? [{ start, end }] : []
+        })
+
+        // A task with a time of day is already committed to that time.
+        for (const t of tasks) {
+          if (t.due_on !== date || t.status !== 'open') continue
+          const start = parseTimeToMinutes(t.due_time)
+          if (start === null) continue
+          busy.push({ start, end: start + Math.max(15, defaultEstimateFor(t)) })
+        }
+
+        const suggestions = suggestBlocks(tasks, {
+          today: date,
+          dayStartMin: parseTimeToMinutes(settings.day_start) ?? 480,
+          dayEndMin: parseTimeToMinutes(settings.day_end) ?? 1260,
+          busy,
+          alreadyBlocked: [
+            ...manual.map((b) => b.task_id).filter((id): id is string => id !== null),
+            // Something with its own time doesn't need a block as well.
+            ...tasks.filter((t) => t.due_on === date && t.due_time).map((t) => t.id),
+          ],
+        })
+
+        await replacePlannerBlocks(
+          user.id,
+          date,
+          suggestions.map((s) => ({
+            on_date: date,
+            start_time: minutesToTime(s.startMin),
+            end_time: minutesToTime(s.endMin),
+            task_id: s.taskId,
+            label: '',
+            source: 'planner' as const,
+          })),
+        )
+        reload()
+      } catch (e: unknown) {
+        setError(e instanceof Error ? e.message : 'Could not plan the day')
+      }
+    },
+    [user, blocks, tasks, settings, reload],
+  )
+
   const patchTask = useCallback(
     async (id: string, patch: Partial<Task>) => {
       setTasks((prev) => prev.map((t) => (t.id === id ? { ...t, ...patch } : t)))
@@ -200,7 +264,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
     <DataContext.Provider
       value={{
         areas, projects, tasks, series, blocks, settings, loading, error, reload,
-        addTask, addSeries, toggleTask, patchTask, saveSettings, addBlock, removeBlock,
+        addTask, addSeries, toggleTask, patchTask, saveSettings, addBlock, removeBlock, planDay,
       }}
     >
       {children}

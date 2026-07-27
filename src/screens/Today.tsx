@@ -5,7 +5,7 @@ import { TaskRow } from '../components/TaskRow'
 import { EmptyState } from '../components/ui/EmptyState'
 import { useData } from '../data/DataProvider'
 import { buildToday } from '../domain/planner'
-import { relativeLabel, todayISO, weekdayOf } from '../domain/day'
+import { formatTime, relativeLabel, todayISO, weekdayOf } from '../domain/day'
 import type { Task } from '../data/types'
 
 const WEEKDAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']
@@ -14,8 +14,9 @@ const hours = (min: number) =>
   min >= 60 ? `${Math.floor(min / 60)}h${min % 60 ? ` ${min % 60}m` : ''}` : `${min}m`
 
 export default function Today() {
-  const { tasks, series, settings, error } = useData()
+  const { tasks, series, blocks, settings, error, planDay } = useData()
   const today = todayISO()
+  const todayBlocks = blocks.filter((b) => b.on_date === today)
 
   // lead_days lives on the series, so occurrences borrow it for scoring: a
   // birthday with a week of lead should surface a week out, not on the day.
@@ -71,6 +72,26 @@ export default function Today() {
               <span className="warn"> · {hours(plan.overCapacity)} more than you have</span>
             )}
           </p>
+          <button
+            className="btn btn--small"
+            style={{ marginTop: 12 }}
+            onClick={() => void planDay(today)}
+          >
+            Auto-plan my day
+          </button>
+        </div>
+      )}
+
+      {todayBlocks.length > 0 && (
+        <div className="card">
+          <h2>Blocked out</h2>
+          {todayBlocks.map((b) => (
+            <p key={b.id} style={{ margin: '4px 0' }}>
+              <strong>{formatTime(b.start_time)}</strong>–{formatTime(b.end_time)}{' '}
+              {b.label || tasks.find((t) => t.id === b.task_id)?.title || 'Blocked'}
+              {b.source === 'planner' && <span className="muted"> · suggested</span>}
+            </p>
+          ))}
         </div>
       )}
 

@@ -1,5 +1,5 @@
 import { layoutTimedItems } from '../../domain/calendarGrid'
-import { formatTime, parseTimeToMinutes } from '../../domain/day'
+import { formatTime, minutesToTime, parseTimeToMinutes } from '../../domain/day'
 import { defaultEstimateFor } from '../../domain/planner'
 import type { Task } from '../../data/types'
 
@@ -85,6 +85,3 @@ export function DayColumn({
     </div>
   )
 }
-
-export const minutesToTime = (min: number): string =>
-  `${String(Math.floor(min / 60)).padStart(2, '0')}:${String(min % 60).padStart(2, '0')}`

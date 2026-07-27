@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { buildToday, defaultEstimateFor, isDeferred, scoreTask } from './planner'
+import { buildToday, defaultEstimateFor, isDeferred, scoreTask, suggestBlocks } from './planner'
 import type { Plannable } from './planner'
 
 const TODAY = '2026-07-27'
@@ -173,5 +173,72 @@ describe('buildToday', () => {
     const b = task({ due_on: '2026-07-20' })
     const c = task({ due_on: TODAY })
     expect(ids(plan([a, b, c]).must)).toEqual([b.id, a.id, c.id])
+  })
+})
+
+describe('suggestBlocks', () => {
+  // 9am–5pm.
+  const DAY = { today: TODAY, dayStartMin: 540, dayEndMin: 1020 }
+  const suggest = (tasks: Plannable[], busy: { start: number; end: number }[] = [], blocked: string[] = []) =>
+    suggestBlocks(tasks, { ...DAY, busy, alreadyBlocked: blocked })
+
+  it('places the first task at the start of the day', () => {
+    const t = task({ due_on: TODAY, estimate_min: 60 })
+    expect(suggest([t])).toEqual([{ taskId: t.id, startMin: 540, endMin: 600 }])
+  })
+
+  it('stacks the next task straight after the previous one', () => {
+    const a = task({ due_on: TODAY, estimate_min: 60 })
+    const b = task({ due_on: TODAY, estimate_min: 30, priority: 0 })
+    const out = suggest([a, b])
+    expect(out[1]).toEqual({ taskId: b.id, startMin: 600, endMin: 630 })
+  })
+
+  it('works around time that is already committed', () => {
+    const t = task({ due_on: TODAY, estimate_min: 60 })
+    // Something already runs 9–10:30.
+    expect(suggest([t], [{ start: 540, end: 630 }])).toEqual([
+      { taskId: t.id, startMin: 630, endMin: 690 },
+    ])
+  })
+
+  it('uses a gap between commitments when the task fits', () => {
+    const t = task({ due_on: TODAY, estimate_min: 30 })
+    const busy = [{ start: 540, end: 600 }, { start: 630, end: 720 }]
+    expect(suggest([t], busy)).toEqual([{ taskId: t.id, startMin: 600, endMin: 630 }])
+  })
+
+  it('skips a gap too small and takes the next one that fits', () => {
+    const t = task({ due_on: TODAY, estimate_min: 60 })
+    const busy = [{ start: 540, end: 570 }, { start: 600, end: 660 }]
+    expect(suggest([t], busy)).toEqual([{ taskId: t.id, startMin: 660, endMin: 720 }])
+  })
+
+  it('places nothing once the day is full', () => {
+    const t = task({ due_on: TODAY, estimate_min: 60 })
+    expect(suggest([t], [{ start: 540, end: 1020 }])).toEqual([])
+  })
+
+  it('never runs past the end of the day', () => {
+    const t = task({ due_on: TODAY, estimate_min: 120 })
+    expect(suggest([t], [{ start: 540, end: 960 }])).toEqual([])
+  })
+
+  it('leaves alone anything already blocked by hand', () => {
+    const t = task({ due_on: TODAY, estimate_min: 60 })
+    expect(suggest([t], [], [t.id])).toEqual([])
+  })
+
+  it('follows the plan order, so the most overdue is scheduled first', () => {
+    const late = task({ due_on: '2026-07-20', estimate_min: 60 })
+    const now = task({ due_on: TODAY, estimate_min: 60 })
+    expect(suggest([now, late]).map((b) => b.taskId)).toEqual([late.id, now.id])
+  })
+
+  it('never schedules events, deferred work or anything already done', () => {
+    const birthday = task({ kind: 'event', due_on: TODAY })
+    const later = task({ due_on: TODAY, starts_on: '2026-08-01' })
+    const finished = task({ due_on: TODAY, status: 'done' })
+    expect(suggest([birthday, later, finished])).toEqual([])
   })
 })

@@ -2,10 +2,12 @@ import { useMemo, useState } from 'react'
 import { ScreenHeader } from '../components/ScreenHeader'
 import { TaskRow } from '../components/TaskRow'
 import { SegmentedControl } from '../components/ui/SegmentedControl'
-import { DayColumn, HOUR_PX, minutesToTime, timedEntriesFor } from '../components/calendar/DayColumn'
+import { DayColumn, HOUR_PX, timedEntriesFor } from '../components/calendar/DayColumn'
 import { useData } from '../data/DataProvider'
 import { monthGrid, monthLabel, weekDays } from '../domain/calendarGrid'
-import { addDays, addMonthsClamped, formatTime, parseTimeToMinutes, relativeLabel, todayISO } from '../domain/day'
+import {
+  addDays, addMonthsClamped, formatTime, minutesToTime, parseTimeToMinutes, relativeLabel, todayISO,
+} from '../domain/day'
 import type { Block, Task } from '../data/types'
 import type { TimedEntry } from '../components/calendar/DayColumn'
 
