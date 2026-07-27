@@ -9,6 +9,7 @@ import Inbox from './screens/Inbox'
 import Lists from './screens/Lists'
 import Habits from './screens/Habits'
 import Settings from './screens/Settings'
+import ProjectDetail from './screens/ProjectDetail'
 
 export default function App() {
   const { session, loading } = useAuth()
@@ -30,6 +31,7 @@ export default function App() {
           <Route path="/lists" element={<Lists />} />
           <Route path="/habits" element={<Habits />} />
           <Route path="/settings" element={<Settings />} />
+          <Route path="/project/:id" element={<ProjectDetail />} />
           <Route path="*" element={<Today />} />
         </Route>
       </Routes>
