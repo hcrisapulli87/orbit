@@ -1,13 +1,40 @@
+import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { ScreenHeader } from '../components/ScreenHeader'
 import { useAuth } from '../auth/AuthProvider'
 import { useData } from '../data/DataProvider'
+import { disablePush, enablePush, isInstalled, pushState } from '../lib/push'
+import type { PushState } from '../lib/push'
 
 const WEEKDAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
+
+const PUSH_COPY: Record<PushState, string> = {
+  unsupported: 'This browser can’t do web push.',
+  'not-configured': 'No VAPID key set — add VITE_VAPID_PUBLIC_KEY and redeploy.',
+  denied: 'Notifications are blocked. Turn them back on in browser settings first.',
+  off: 'Off. The Discord digest still runs regardless.',
+  on: 'On for this device. Each device has to be turned on separately.',
+}
 
 export default function Settings() {
   const { user, signOut } = useAuth()
   const { settings, saveSettings } = useData()
+  const [push, setPush] = useState<PushState>('off')
+  const [pushBusy, setPushBusy] = useState(false)
+
+  useEffect(() => {
+    void pushState().then(setPush)
+  }, [])
+
+  const togglePush = async () => {
+    if (!user) return
+    setPushBusy(true)
+    try {
+      setPush(push === 'on' ? await disablePush() : await enablePush(user.id))
+    } finally {
+      setPushBusy(false)
+    }
+  }
 
   const setCapacity = (index: number, value: number) => {
     const next = [...settings.weekday_capacity]
@@ -71,6 +98,29 @@ export default function Settings() {
             onChange={(e) => void saveSettings({ day_end: e.target.value })}
           />
         </label>
+      </div>
+
+      <div className="card">
+        <h2>Notifications</h2>
+        <p className="muted" style={{ margin: '0 0 12px', fontSize: '0.8rem' }}>
+          {PUSH_COPY[push]}
+        </p>
+        {/* iOS only allows push for a PWA that's been added to the home screen,
+            and drops permission if you delete it — worth saying before the tap
+            rather than after it silently fails. */}
+        {!isInstalled() && push !== 'on' && (
+          <p className="muted" style={{ margin: '0 0 12px', fontSize: '0.78rem' }}>
+            On iPhone, add Orbit to your home screen first — Safari won’t allow
+            notifications otherwise.
+          </p>
+        )}
+        <button
+          className="btn"
+          disabled={pushBusy || push === 'unsupported' || push === 'not-configured' || push === 'denied'}
+          onClick={() => void togglePush()}
+        >
+          {push === 'on' ? 'Turn off on this device' : 'Enable notifications'}
+        </button>
       </div>
 
       <div className="card">

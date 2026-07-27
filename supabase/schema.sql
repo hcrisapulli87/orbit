@@ -233,6 +233,35 @@ create table if not exists public.task_template_items (
 create index if not exists task_template_items_template_idx
   on public.task_template_items (owner_id, template_id, sort_order);
 
+-- ── v6: web push ──────────────────────────────────────────────────────────────
+
+-- One row per browser/device that has granted permission. The endpoint is the
+-- push service's own URL for that device and is naturally unique.
+create table if not exists public.task_push_subscriptions (
+  id            uuid primary key default gen_random_uuid(),
+  owner_id      uuid not null references public.profiles (id) on delete cascade,
+  endpoint      text not null unique,
+  p256dh        text not null,
+  auth          text not null,
+  user_agent    text,
+  failure_count integer not null default 0,
+  created_at    timestamptz not null default now(),
+  last_used_at  timestamptz
+);
+
+-- Send-once bookkeeping: the Postgres replacement for the bot's
+-- fired_maintenance_alerts.json / fired_date_alerts.json dedupe files. Without
+-- it, a quarter-hourly cron re-notifies about the same task forever.
+create table if not exists public.task_notifications (
+  id        uuid primary key default gen_random_uuid(),
+  owner_id  uuid not null references public.profiles (id) on delete cascade,
+  task_id   uuid not null references public.task_tasks (id) on delete cascade,
+  kind      text not null check (kind in ('due_soon', 'due_today', 'overdue', 'block_start')),
+  sent_for  date not null,
+  sent_at   timestamptz not null default now(),
+  unique (owner_id, task_id, kind, sent_for)
+);
+
 -- ── Seeds ─────────────────────────────────────────────────────────────────────
 -- Orbit is single-user, so the seeds belong to one account. Change the email
 -- below if the owner ever changes. Idempotent: re-running inserts nothing new.
@@ -291,7 +320,8 @@ do $$
 declare t text;
 begin
   foreach t in array array['task_areas', 'task_projects', 'task_tasks', 'task_series', 'task_settings', 'task_blocks',
-                           'task_templates', 'task_template_items'] loop
+                           'task_templates', 'task_template_items',
+                           'task_push_subscriptions', 'task_notifications'] loop
     execute format('alter table public.%I enable row level security', t);
     execute format('drop policy if exists "%s: owner only" on public.%I', t, t);
     execute format(
@@ -308,7 +338,8 @@ do $$
 declare t text;
 begin
   foreach t in array array['task_areas', 'task_projects', 'task_tasks', 'task_series', 'task_settings', 'task_blocks',
-                           'task_templates', 'task_template_items'] loop
+                           'task_templates', 'task_template_items',
+                           'task_push_subscriptions', 'task_notifications'] loop
     if not exists (
       select 1 from pg_publication_tables
       where pubname = 'supabase_realtime' and schemaname = 'public' and tablename = t
