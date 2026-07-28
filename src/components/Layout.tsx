@@ -2,15 +2,17 @@ import { NavLink, Outlet } from 'react-router-dom'
 import { useData } from '../data/DataProvider'
 import { isInbox } from '../data/tasks'
 import { CaptureBar } from './CaptureBar'
+import { Icon } from './Icon'
+import type { IconName } from './Icon'
 
 // The five daily surfaces. Project detail, task detail, templates, settings and
 // search are reached from within these rather than from the bar.
-const TABS = [
-  { to: '/', label: 'Today', icon: '🌅' },
-  { to: '/calendar', label: 'Calendar', icon: '📅' },
-  { to: '/inbox', label: 'Inbox', icon: '📥' },
-  { to: '/lists', label: 'Lists', icon: '🧺' },
-  { to: '/habits', label: 'Habits', icon: '🔁' },
+const TABS: { to: string; label: string; icon: IconName }[] = [
+  { to: '/', label: 'Today', icon: 'today' },
+  { to: '/calendar', label: 'Calendar', icon: 'calendar' },
+  { to: '/inbox', label: 'Inbox', icon: 'inbox' },
+  { to: '/lists', label: 'Lists', icon: 'lists' },
+  { to: '/habits', label: 'Habits', icon: 'habits' },
 ]
 
 export function Layout() {
@@ -30,7 +32,9 @@ export function Layout() {
             end={t.to === '/'}
             className={({ isActive }) => (isActive ? 'active' : '')}
           >
-            <span className="icon">{t.icon}</span>
+            <span className="icon">
+              <Icon name={t.icon} />
+            </span>
             {t.label}
             {t.to === '/inbox' && inboxCount > 0 && <span className="badge">{inboxCount}</span>}
           </NavLink>

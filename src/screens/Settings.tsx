@@ -3,6 +3,8 @@ import { Link } from 'react-router-dom'
 import { ScreenHeader } from '../components/ScreenHeader'
 import { useAuth } from '../auth/AuthProvider'
 import { useData } from '../data/DataProvider'
+import { PALETTES, THEMES } from '../domain/appearance'
+import { DEMO } from '../lib/supabase'
 import { disablePush, enablePush, isInstalled, pushState } from '../lib/push'
 import type { PushState } from '../lib/push'
 
@@ -52,6 +54,23 @@ export default function Settings() {
           </Link>
         }
       />
+
+      <div className="card">
+        <h2>Appearance</h2>
+        <Link className="choice" to="/appearance">
+          <span className="choice__body">
+            <span className="choice__name">
+              {THEMES[settings.ui_theme].name} · {PALETTES[settings.ui_palette].name}
+            </span>
+            <span className="choice__sub">
+              {settings.ui_mode === 'system' ? 'Following the system' : `Always ${settings.ui_mode}`}
+            </span>
+          </span>
+          {/* A typographic mark rather than an eighth glyph: it takes
+              currentColor and the palette for free, same as the icons do. */}
+          <span className="muted" aria-hidden="true">›</span>
+        </Link>
+      </div>
 
       <div className="card">
         <h2>Daily capacity</h2>
@@ -124,10 +143,14 @@ export default function Settings() {
       </div>
 
       <div className="card">
-        <h2>Account</h2>
-        <p className="muted" style={{ margin: '0 0 12px' }}>{user?.email}</p>
+        <h2>{DEMO ? 'Demo' : 'Account'}</h2>
+        <p className="muted" style={{ margin: '0 0 12px' }}>
+          {DEMO
+            ? 'Every task, project and streak here is invented, and it all lives in memory — reload and it comes back exactly as it started.'
+            : user?.email}
+        </p>
         <button className="btn" onClick={() => void signOut()}>
-          Sign out
+          {DEMO ? 'Reset the demo data' : 'Sign out'}
         </button>
       </div>
     </main>

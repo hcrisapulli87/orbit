@@ -50,6 +50,9 @@ const PRIORITY_WEIGHT = 30
 const AGE_WEIGHT = 0.3
 const AGE_CAP_DAYS = 90
 
+/** How far ahead Today will look for work that isn't yet a commitment. */
+const TODAY_HORIZON_DAYS = 7
+
 /** Default minutes by kind and priority, used when no estimate was given. */
 const ESTIMATE_BY_PRIORITY = [20, 25, 30, 45]
 const HABIT_ESTIMATE = 10
@@ -191,9 +194,24 @@ export function buildToday<T extends Plannable>(
     })
     .sort((a, b) => compareISO(a.due_on!, b.due_on!))
 
-  const work = live.filter((t) => t.kind !== 'event').sort(byScore)
-
   const isCommitment = (t: T) => t.due_on !== null && compareISO(t.due_on, today) <= 0
+
+  /**
+   * Today is a day, not a backlog.
+   *
+   * Recurring series are materialised sixty days ahead, so without a cutoff a
+   * single daily habit puts sixty identical rows on the screen and buries
+   * everything that actually matters. Undated work has no horizon to be beyond
+   * and stays; a commitment is never dropped, whatever its date; and a series
+   * asking for a longer lead time gets the lead time it asked for.
+   */
+  const withinHorizon = (t: T) =>
+    t.due_on === null ||
+    isCommitment(t) ||
+    daysBetween(today, t.due_on) <= Math.max(TODAY_HORIZON_DAYS, t.lead_days ?? 0)
+
+  const work = live.filter((t) => t.kind !== 'event' && withinHorizon(t)).sort(byScore)
+
   const must = work.filter(isCommitment)
   const overdue = must.filter((t) => compareISO(t.due_on!, today) < 0)
 

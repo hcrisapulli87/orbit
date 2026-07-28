@@ -49,5 +49,9 @@ export default defineConfig({
     environment: 'jsdom',
     globals: true,
     setupFiles: ['./src/test/setup.ts'],
+    // Vitest stubs CSS imports out by default, which also empties `?raw`.
+    // appearance.test.ts reads theme.css back as a string to check the token
+    // table and the sheet still agree, so the stylesheet has to be real.
+    css: true,
   },
 })

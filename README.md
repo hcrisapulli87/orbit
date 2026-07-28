@@ -42,6 +42,35 @@ capture bar commits to the Australian reading, marks the parse low-confidence,
 draws the chip dotted, and *refuses to invent a time*. The raw text you typed
 is always kept.
 
+## Appearance
+
+Three independent axes, stored as three columns on the settings row and applied
+as three attributes on `<html>`:
+
+| Axis | Values | Owns |
+| --- | --- | --- |
+| **Theme** | Halo · Telemetry · Terrain · Transit | typeface, shape, elevation, density — **never a hue** |
+| **Palette** | Indigo · Lagoon · Ember · Orchid · Phosphor | hue, and the same set of hues in every theme |
+| **Mode** | System · Light · Dark | surface polarity |
+
+Four × five × two = 40 combinations that all work, because the three CSS layers
+in `styles/theme.css` own disjoint sets of tokens and every single-attribute
+selector has the same specificity — source order decides, so nothing needs
+`!important`. `domain/appearance.ts` holds the hues as data; `appearance.test.ts`
+checks every combination against WCAG AA on seven text roles, reads the
+stylesheet back to prove the two copies agree, and fails if a theme ever
+declares a colour of its own.
+
+Halo · Indigo · Dark is the app as it was before any of this existed, value for
+value. Only *Today* differs between themes: Terrain folds Should and
+If-there's-time behind a summary line, and Transit swaps the list for a
+timeline (`screens/TodaySpine.tsx`) built from the same `buildToday()` plan and
+the same `HOUR_PX` the calendar uses.
+
+Postgres is the source of truth. `localStorage` mirrors the three values for one
+reason: `main.tsx` applies them before React mounts, so a cold start doesn't
+flash the default theme for a beat.
+
 ## Stack
 
 React 19, Vite, TypeScript, `@supabase/supabase-js`, `react-router-dom`,
@@ -55,6 +84,7 @@ to prove it.
 src/
   domain/     pure logic, no React, no network — where the tests live
   data/       Supabase I/O, one file per table
+  demo/       the in-memory stand-in behind `npm run demo`
   components/ shared UI
   screens/    one per route
 supabase/
@@ -64,8 +94,8 @@ supabase/
 ```
 
 `domain/` is the heavy-tested half: recurrence, capture parsing, planner
-scoring, streaks, calendar geometry, template instantiation. 246 tests, all
-pure, `now` always injected, no clock mocking.
+scoring, streaks, calendar geometry, template instantiation, appearance
+contrast. 276 tests, all pure, `now` always injected, no clock mocking.
 
 ## Setup
 
@@ -78,6 +108,28 @@ pure, `now` always injected, no clock mocking.
 
 The publishable key is a public browser key; security lives in Row-Level
 Security, not in hiding it. Every Orbit table is owner-only.
+
+### Demo mode
+
+```
+npm run demo
+```
+
+Orbit with no backend, no account and no keys: `VITE_DEMO=1` swaps the Supabase
+client (`src/lib/supabase.ts`) for an in-memory fake in `src/demo/`, seeded with
+an invented but plausible week — overdue work, an over-committed day, a project
+mid-flight, habits with live streaks and a broken one, a low-confidence parse.
+Sign-in is bypassed; Settings offers "Reset the demo data" in place of Sign out.
+
+Only the I/O boundary is faked. Every screen, the provider, the planner, the
+recurrence engine and the optimistic writes are the real ones, so the demo can't
+drift away from the app that ships — recurring occurrences, for instance, are
+seeded as *rules* and materialised on load by the same engine as production.
+Everything is held in memory: writes work, and a reload restores the same
+curated day.
+
+Dates are relative to today, so the demo doesn't rot. `npm run demo:build`
+produces a static bundle in `dist-demo/` if it ever needs hosting.
 
 ### Notifications (optional)
 
@@ -97,6 +149,7 @@ second channel, not redundancy for its own sake.
 | | |
 |---|---|
 | `npm run dev` | dev server |
+| `npm run demo` | dev server with fake data and no backend |
 | `npm test` | Vitest, once |
 | `npm run typecheck` | `tsc --noEmit` |
 | `npm run build` | typecheck + production build |

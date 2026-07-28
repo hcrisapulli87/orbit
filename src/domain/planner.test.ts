@@ -134,6 +134,33 @@ describe('buildToday', () => {
     expect(ids(p.ifTime)).toEqual([small.id])
   })
 
+  // A daily habit materialises sixty days of occurrences up front. Without a
+  // horizon every one of them lands on Today, and one habit is enough to bury
+  // the screen under identical rows.
+  it('keeps work due beyond the horizon off today altogether', () => {
+    const soon = task({ due_on: '2026-08-01' })
+    const far = task({ due_on: '2026-09-15' })
+    const p = plan([soon, far])
+    expect(ids([...p.should, ...p.ifTime])).toEqual([soon.id])
+  })
+
+  it('still shows undated work, which has no horizon to be beyond', () => {
+    const someday = task()
+    expect(ids(plan([someday]).should)).toEqual([someday.id])
+  })
+
+  it('never drops a commitment for being far away — it cannot be', () => {
+    const overdueLongAgo = task({ due_on: '2026-01-01' })
+    expect(ids(plan([overdueLongAgo]).must)).toEqual([overdueLongAgo.id])
+  })
+
+  // lead_days is the series saying "start surfacing this early". A rule that
+  // asks for more warning than the default horizon gets it.
+  it('respects a lead time longer than the horizon', () => {
+    const renewal = task({ due_on: '2026-08-20', lead_days: 30 })
+    expect(ids(plan([renewal]).should)).toEqual([renewal.id])
+  })
+
   it('excludes deferred tasks entirely', () => {
     const later = task({ due_on: TODAY, starts_on: '2026-08-01' })
     const p = plan([later])

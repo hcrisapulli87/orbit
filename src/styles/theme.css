@@ -1,53 +1,395 @@
 /* ============================================================================
-   Orbit — Liquid Glass design system (Deep Indigo)
-   All colour lives in tokens; a palette swap is a one-block edit.
-   Deliberately distinct from Tally's Deep Aqua so the two home-screen icons
-   and the two apps never get mistaken for each other.
+   Orbit — appearance system
+
+   Four layers, in this order, all applied as attributes on <html>:
+
+     :root                    structural constants — spacing, tap targets, motion
+     [data-palette="…"]       hue, and only hue
+     [data-mode="…"]          surface polarity, derived from the palette's tints
+     [data-theme="…"]         typeface, shape, elevation, and the few layout
+                              rules a theme owns
+
+   Every single-attribute selector has specificity (0,1,0), so source order is
+   what decides — a theme can override a mode token, a mode can override a
+   palette token, and nothing needs !important.
+
+   The rule that keeps this from collapsing: a theme may never declare a hue.
+   Four themes × five palettes × two modes = 40 combinations that all work,
+   because the three axes own disjoint sets of tokens.
+
+   The hues below are mirrored in src/domain/appearance.ts, which is where the
+   contrast test reads them from; appearance.test.ts reads this file back and
+   fails if the two ever drift apart.
    ============================================================================ */
+
+/* ── structure: identical in every combination ─────────────────────────────── */
 :root {
-  /* palette — Deep Indigo */
-  --accent: #ffb454;                  /* amber — primary actions, active tab */
-  --accent-2: #a78bfa;                /* violet — secondary, habits, events */
-  --accent-ink: #2a1a00;              /* text on accent fills */
+  --tap: 44px;                      /* minimum thumb target, everywhere */
+  --gap: 14px;                      /* between cards */
+  --card-pad: 16px;
+  --row-pad: 10px;
+  --motion: 180ms;
+
+  /* Shape defaults are Halo's, so a missing data-theme still renders the app
+     it has always been rather than an unstyled one. */
+  --font: 'Manrope', 'Segoe UI', system-ui, -apple-system, sans-serif;
+  --radius: 26px;
+  --radius-hero: 30px;
+  --radius-sm: 16px;
+  --pill-radius: 999px;
+  --tab-radius: 999px;
+  --check-radius: 8px;
+  --blur: blur(24px) saturate(180%);
+  --display-weight: 800;
+  --card-border-w: 1px;
+}
+
+/* ── palettes: hue, and nothing but hue ────────────────────────────────────
+   Indigo is today's Orbit, value for value, so Halo · Indigo · Dark is
+   unchanged by any of this. The other four are the same shape of data.
+
+   --accent-deep exists because an accent used as *type* on a pale surface is
+   a different colour from the same accent used as a fill. That is the only
+   fork between modes inside a palette. */
+
+[data-palette="indigo"] {
+  --accent: #ffb454;
+  --accent-2: #a78bfa;
+  --accent-ink: #2a1a00;
+  --accent-2-ink: #1a1140;
+  --accent-deep: #9a5c00;
+  --accent-2-deep: #5b3bc9;
+  --done-deep: #157f4a;
   --grad: linear-gradient(135deg, #ffc978, #ffb454);
   --grad-2: linear-gradient(135deg, #c4b5fd, #a78bfa);
-  --done: #4bd08a;                    /* completed */
-  --danger: #f2a15c;                  /* due soon (warm) */
-  --warn: #f2a15c;
-  --danger-strong: #ff6b6b;           /* overdue / destructive text */
+  --grad-over: linear-gradient(135deg, #ff9d6b, #ff6b6b);
+  --warn-bright: #f2a15c;
+  --warn-deep: #8a5200;
+  --warn-ink: #2a1a00;
+  --danger-dark: #ff6b6b;
+  --danger-light: #a8380a;
+  --done: #4bd08a;
+  --done-ink: #06301c;
+  --tint-deep: #0d1030;
+  --tint-deep-2: #151a4a;
+  --tint-pale: #f1eee6;
+  --tint-pale-ink: #232033;
+  --shade: #060816;
+}
 
-  /* glass surfaces */
+[data-palette="lagoon"] {
+  --accent: #4fd1c5;
+  --accent-2: #7cc6ff;
+  --accent-ink: #04231f;
+  --accent-2-ink: #04202e;
+  --accent-deep: #0f766e;
+  --accent-2-deep: #1d6ea8;
+  --done-deep: #0f7a52;
+  --grad: linear-gradient(135deg, #7fe3da, #4fd1c5);
+  --grad-2: linear-gradient(135deg, #a9dcff, #7cc6ff);
+  --grad-over: linear-gradient(135deg, #f6a37f, #f2795c);
+  --warn-bright: #eaa85f;
+  --warn-deep: #8a5410;
+  --warn-ink: #04231f;
+  --danger-dark: #f2795c;
+  --danger-light: #a83f26;
+  --done: #5fe0a8;
+  --done-ink: #032a1c;
+  --tint-deep: #04191e;
+  --tint-deep-2: #07303a;
+  --tint-pale: #e9f1ef;
+  --tint-pale-ink: #153230;
+  --shade: #02100f;
+}
+
+[data-palette="ember"] {
+  --accent: #d2694a;
+  --accent-2: #e8c56a;
+  --accent-ink: #2a0e06;
+  --accent-2-ink: #2b230a;
+  --accent-deep: #a4482c;
+  --accent-2-deep: #8a6a12;
+  --done-deep: #2f7a49;
+  --grad: linear-gradient(135deg, #e58a6d, #d2694a);
+  --grad-2: linear-gradient(135deg, #f2d998, #e8c56a);
+  --grad-over: linear-gradient(135deg, #f29b7e, #f2705e);
+  --warn-bright: #e2a24f;
+  --warn-deep: #82530d;
+  --warn-ink: #2a0e06;
+  /* The design doc's #b4271f is a fill colour: as type on Ember's near-black
+     it measures 2.3:1. Lifted until it reads; the fill it replaces is only
+     ever drawn under --accent-ink, which is unaffected. */
+  --danger-dark: #f2705e;
+  --danger-light: #a01f18;
+  --done: #7fc98f;
+  --done-ink: #0d2a14;
+  --tint-deep: #1a0f0b;
+  --tint-deep-2: #2e1712;
+  --tint-pale: #f6ece8;
+  --tint-pale-ink: #33201c;
+  --shade: #0e0705;
+}
+
+[data-palette="orchid"] {
+  --accent: #a78bfa;
+  --accent-2: #f0768b;
+  --accent-ink: #1a1140;
+  --accent-2-ink: #2e0713;
+  --accent-deep: #6d4bd8;
+  --accent-2-deep: #b02b45;
+  --done-deep: #157f4a;
+  --grad: linear-gradient(135deg, #c4b5fd, #a78bfa);
+  --grad-2: linear-gradient(135deg, #f7a4b2, #f0768b);
+  --grad-over: linear-gradient(135deg, #f79ab1, #f0768b);
+  --warn-bright: #f0a862;
+  --warn-deep: #8a551a;
+  --warn-ink: #1a1140;
+  --danger-dark: #f0768b;
+  --danger-light: #c22a4c;
+  --done: #4bd08a;
+  --done-ink: #06301c;
+  --tint-deep: #16141c;
+  --tint-deep-2: #241f36;
+  --tint-pale: #f2eff6;
+  --tint-pale-ink: #262133;
+  --shade: #0c0a10;
+}
+
+[data-palette="phosphor"] {
+  --accent: #7dff9b;
+  --accent-2: #5b9dff;
+  --accent-ink: #04180a;
+  --accent-2-ink: #04142e;
+  --accent-deep: #15702f;
+  --accent-2-deep: #1c5fbf;
+  --done-deep: #10703c;
+  --grad: linear-gradient(135deg, #b2ffc4, #7dff9b);
+  --grad-2: linear-gradient(135deg, #93c0ff, #5b9dff);
+  --grad-over: linear-gradient(135deg, #ff9d8f, #ff5f56);
+  --warn-bright: #ffc457;
+  --warn-deep: #7a5300;
+  --warn-ink: #04180a;
+  --danger-dark: #ff5f56;
+  --danger-light: #c02a22;
+  /* Phosphor's accent is already green, so "done" moves to a deeper one that
+     can't be mistaken for the active colour at checkbox size. */
+  --done: #2fbf6d;
+  --done-ink: #04180a;
+  --tint-deep: #0a0d0b;
+  --tint-deep-2: #101a12;
+  --tint-pale: #edf2ec;
+  --tint-pale-ink: #16211a;
+  --shade: #050706;
+}
+
+/* ── modes: surface polarity ───────────────────────────────────────────────
+   Every surface here is written as the palette's tint mixed with white or
+   black, so a palette swap moves the whole app and a mode swap flips it. */
+
+[data-mode="dark"] {
+  --ink: #ffffff;
+  --dim: rgba(255, 255, 255, 0.62);         /* never lighter than this */
+
   --glass: rgba(255, 255, 255, 0.10);
   --glass-2: rgba(255, 255, 255, 0.06);
   --border: rgba(255, 255, 255, 0.20);
-  --inner: rgba(255, 255, 255, 0.14);  /* emoji tiles / nested wells */
+  --inner: rgba(255, 255, 255, 0.14);
+  --hairline: rgba(255, 255, 255, 0.16);
+  --track: rgba(255, 255, 255, 0.06);
 
-  /* ink */
-  --ink: #ffffff;
-  --dim: rgba(255, 255, 255, 0.62);    /* never lighter than this */
-
-  /* fixed backdrop — the darkest point contrast is checked against */
+  --page-solid: var(--tint-deep);
+  --surface-solid: color-mix(in srgb, #ffffff 8%, var(--tint-deep));
   --page-bg:
-    radial-gradient(1200px 800px at 80% -10%, rgba(255, 180, 84, 0.20), transparent 60%),
-    radial-gradient(900px 700px at -10% 20%, rgba(167, 139, 250, 0.26), transparent 55%),
-    linear-gradient(160deg, #0d1030 0%, #151a4a 55%, #0d1030 100%);
-  --page-solid: #0d1030;               /* darkest reference for contrast */
+    radial-gradient(1200px 800px at 80% -10%, color-mix(in srgb, var(--accent) 20%, transparent), transparent 60%),
+    radial-gradient(900px 700px at -10% 20%, color-mix(in srgb, var(--accent-2) 26%, transparent), transparent 55%),
+    linear-gradient(160deg, var(--tint-deep) 0%, var(--tint-deep-2) 55%, var(--tint-deep) 100%);
 
-  /* elevation + radii */
   --shadow: 0 10px 34px rgba(0, 0, 0, 0.34), inset 0 1px 0 rgba(255, 255, 255, 0.26);
   --shadow-soft: 0 6px 20px rgba(0, 0, 0, 0.26), inset 0 1px 0 rgba(255, 255, 255, 0.20);
+
+  --scrim: color-mix(in srgb, var(--shade) 55%, transparent);
+  --panel: color-mix(in srgb, var(--tint-deep) 92%, transparent);
+  --panel-2: color-mix(in srgb, var(--tint-deep) 78%, transparent);
+  --bar-bg: color-mix(in srgb, var(--tint-deep) 62%, transparent);
+
+  /* An accent on a dark surface reads as type unaided. */
+  --accent-text: var(--accent);
+  /* …and as a bare mark too, so the marks are the accents themselves. */
+  --mark: var(--accent);
+  --mark-2: var(--accent-2);
+  --mark-done: var(--done);
+  --mark-done-ink: var(--done-ink);
+  --mark-grad: var(--grad);
+  --warn: var(--warn-bright);
+  --warn-fill: var(--warn-bright);
+  --danger: var(--warn-bright);
+  --danger-strong: var(--danger-dark);
+
+  --card-bg: var(--glass);
+  --card-border: var(--border);
+  --card-shadow: var(--shadow);
+}
+
+[data-mode="light"] {
+  --ink: var(--tint-pale-ink);
+  /* 68% of the ink toward the surface. The plan's floor is "no lighter than
+     today's"; 58% measured 3.9:1 on a pale card, which is under 4.5. */
+  --dim: color-mix(in srgb, var(--tint-pale-ink) 68%, var(--tint-pale));
+
+  --glass: rgba(255, 255, 255, 0.70);
+  --glass-2: rgba(255, 255, 255, 0.45);
+  --border: color-mix(in srgb, var(--tint-pale-ink) 18%, transparent);
+  --inner: color-mix(in srgb, var(--tint-pale-ink) 9%, transparent);
+  --hairline: color-mix(in srgb, var(--tint-pale-ink) 14%, transparent);
+  --track: color-mix(in srgb, var(--tint-pale-ink) 10%, transparent);
+
+  --page-solid: var(--tint-pale);
+  --surface-solid: #ffffff;
+  --page-bg:
+    radial-gradient(1200px 800px at 80% -10%, color-mix(in srgb, var(--accent) 26%, transparent), transparent 60%),
+    radial-gradient(900px 700px at -10% 20%, color-mix(in srgb, var(--accent-2) 24%, transparent), transparent 55%),
+    linear-gradient(160deg, var(--tint-pale) 0%, #ffffff 55%, var(--tint-pale) 100%);
+
+  --shadow: 0 10px 30px rgba(0, 0, 0, 0.10), inset 0 1px 0 rgba(255, 255, 255, 0.90);
+  --shadow-soft: 0 6px 18px rgba(0, 0, 0, 0.08), inset 0 1px 0 rgba(255, 255, 255, 0.80);
+
+  --scrim: color-mix(in srgb, var(--tint-pale-ink) 42%, transparent);
+  --panel: color-mix(in srgb, #ffffff 92%, var(--tint-pale));
+  --panel-2: color-mix(in srgb, #ffffff 88%, var(--tint-pale));
+  --bar-bg: color-mix(in srgb, #ffffff 78%, var(--tint-pale));
+
+  /* …and on a pale one it does not, hence the darkened twin. */
+  --accent-text: var(--accent-deep);
+  /* The same problem, one step further out: a mark with no text on it has
+     nothing to be read against but the track behind it. Bright accent on a
+     light track measures 1.1–2.6:1 — the capacity meter simply vanishes — so
+     every bare mark takes the deep twin here. Fills that DO carry text keep
+     the bright accent, because their ink is verified against that. */
+  --mark: var(--accent-deep);
+  --mark-2: var(--accent-2-deep);
+  --mark-done: var(--done-deep);
+  --mark-done-ink: #ffffff;
+  --mark-grad: linear-gradient(135deg, var(--accent), var(--accent-deep));
+  --warn: var(--warn-deep);
+  --warn-fill: var(--warn-bright);
+  --danger: var(--warn-deep);
+  --danger-strong: var(--danger-light);
+
+  --card-bg: var(--glass);
+  --card-border: var(--border);
+  --card-shadow: var(--shadow);
+}
+
+/* ── themes: typeface, shape, elevation ────────────────────────────────────
+   No hue below this line. Anything a theme wants to recolour, it recolours by
+   pointing at a token the palette or mode already owns. */
+
+/* Halo — frosted cards floating over a lit backdrop. Today's app. */
+[data-theme="halo"] {
+  --font: 'Manrope', 'Segoe UI', system-ui, -apple-system, sans-serif;
   --radius: 26px;
   --radius-hero: 30px;
   --radius-sm: 16px;
   --blur: blur(24px) saturate(180%);
 }
 
+/* Telemetry — a readout, not a page. Hairline rules instead of cards, square
+   everything, no blur, and the densest rows of the four. */
+[data-theme="telemetry"] {
+  --font: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  --radius: 0px;
+  --radius-hero: 0px;
+  --radius-sm: 0px;
+  --pill-radius: 0px;
+  --tab-radius: 0px;
+  --check-radius: 0px;
+  --blur: none;
+  --gap: 10px;
+  --card-pad: 12px;
+  --row-pad: 6px;
+  --display-weight: 700;
+
+  --page-bg: none;                       /* flat: a readout has no lighting */
+  --card-bg: transparent;
+  --card-border: var(--hairline);
+  --card-shadow: none;
+  --bar-bg: var(--page-solid);
+}
+[data-theme="telemetry"] .card {
+  border-width: 1px 0 0;
+  padding: 12px 0 4px;
+}
+[data-theme="telemetry"] .card h2 { letter-spacing: 0.18em; font-size: 0.68rem; }
+[data-theme="telemetry"] .greeting,
+[data-theme="telemetry"] .brand { letter-spacing: -0.02em; }
+/* Capacity as blocks rather than a bar — the fill is masked by the same comb
+   as the track, so the two can't disagree about where a block starts. */
+[data-theme="telemetry"] .meter,
+[data-theme="telemetry"] .meter__fill {
+  border-radius: 0;
+  -webkit-mask-image: repeating-linear-gradient(90deg, #000 0 9px, transparent 9px 12px);
+  mask-image: repeating-linear-gradient(90deg, #000 0 9px, transparent 9px 12px);
+}
+[data-theme="telemetry"] .chip { border-radius: 0; }
+[data-theme="telemetry"] .tabbar { border-radius: 0; }
+[data-theme="telemetry"] .tabbar a { border-radius: 0; }
+/* The capture bar reads as a prompt: no pill, no filled plus, a caret. */
+[data-theme="telemetry"] .capture__pill { border-radius: 0; }
+[data-theme="telemetry"] .capture__plus {
+  background: none;
+  color: var(--accent-text);
+  border-radius: 0;
+  font-size: 0.95rem;
+}
+[data-theme="telemetry"] .capture__panel { border-radius: 0; }
+
+/* Terrain — roomy soft cards, one thing at a time. Only Must is shown by
+   default; the rest is one line away (see collapsesSections). */
+[data-theme="terrain"] {
+  --font: 'Outfit', 'Segoe UI', system-ui, -apple-system, sans-serif;
+  --radius: 24px;
+  --radius-hero: 28px;
+  --radius-sm: 14px;
+  --blur: none;
+  --gap: 18px;
+  --card-pad: 20px;
+  --row-pad: 14px;
+
+  --card-bg: var(--surface-solid);
+  --card-border: transparent;
+  --card-shadow: var(--shadow-soft);
+}
+[data-theme="terrain"] .card h2 { font-size: 0.76rem; letter-spacing: 0.08em; }
+[data-theme="terrain"] .task-row__title { font-size: 1.02rem; }
+
+/* Transit — the day on one rail. Blocks and timed tasks sit on the clock,
+   undated work hangs below the spine (see usesSpine). */
+[data-theme="transit"] {
+  --font: 'Space Grotesk', 'Segoe UI', system-ui, -apple-system, sans-serif;
+  --radius: 12px;
+  --radius-hero: 14px;
+  --radius-sm: 10px;
+  --pill-radius: 12px;
+  --check-radius: 4px;
+  --blur: none;
+  --gap: 12px;
+
+  --card-shadow: none;
+  --card-bg: var(--glass);
+}
+[data-theme="transit"] .card h2 { letter-spacing: 0.12em; }
+
+/* ============================================================================
+   Components. Every rule below reads tokens only — no literal colour appears
+   past this line, which is what makes the 40 combinations free.
+   ============================================================================ */
+
 * { box-sizing: border-box; }
 html, body, #root { margin: 0; height: 100%; }
 html { background: var(--page-solid); }
 body {
   color: var(--ink);
-  font-family: 'Manrope', 'Segoe UI', system-ui, -apple-system, sans-serif;
+  font-family: var(--font);
   font-weight: 500;
   letter-spacing: -0.01em;
   -webkit-font-smoothing: antialiased;
@@ -79,8 +421,8 @@ body::before {
   padding: calc(24px + env(safe-area-inset-top)) 24px calc(24px + env(safe-area-inset-bottom));
 }
 
-.brand { color: var(--ink); margin: 0; font-size: 2rem; font-weight: 800; letter-spacing: -0.04em; }
-.greeting { margin: 0; font-size: 1.65rem; font-weight: 800; letter-spacing: -0.03em; }
+.brand { color: var(--ink); margin: 0; font-size: 2rem; font-weight: var(--display-weight); letter-spacing: -0.04em; }
+.greeting { margin: 0; font-size: 1.65rem; font-weight: var(--display-weight); letter-spacing: -0.03em; }
 .muted { color: var(--dim); }
 .error { color: var(--danger-strong); }
 .warn { color: var(--warn); }
@@ -89,14 +431,14 @@ body::before {
 
 /* ---- the glass recipe: fill + hairline + backdrop blur + inset highlight ---- */
 .card {
-  background: var(--glass);
-  border: 1px solid var(--border);
+  background: var(--card-bg);
+  border: var(--card-border-w) solid var(--card-border);
   border-radius: var(--radius);
-  padding: 16px;
-  margin-bottom: 14px;
+  padding: var(--card-pad);
+  margin-bottom: var(--gap);
   backdrop-filter: var(--blur);
   -webkit-backdrop-filter: var(--blur);
-  box-shadow: var(--shadow);
+  box-shadow: var(--card-shadow);
 }
 .card h2 {
   margin: 0 0 12px; font-size: 0.72rem; text-transform: uppercase;
@@ -109,23 +451,23 @@ body::before {
   backdrop-filter: var(--blur); -webkit-backdrop-filter: var(--blur);
 }
 .input::placeholder { color: var(--dim); }
-.input:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+.input:focus-visible { outline: 2px solid var(--accent-text); outline-offset: 1px; }
 .login-form { display: flex; flex-direction: column; gap: 10px; width: min(320px, 90vw); }
 
 .btn {
   padding: 12px 16px; border-radius: var(--radius-sm); border: 1px solid var(--border);
   background: var(--glass); color: var(--ink); font-size: 0.95rem; font-weight: 600; cursor: pointer;
-  font-family: inherit; transition: transform 180ms ease, background 180ms ease;
-  min-height: 44px;
+  font-family: inherit; transition: transform var(--motion) ease, background var(--motion) ease;
+  min-height: var(--tap);
 }
 .btn:active { transform: scale(0.97); }
 .btn--primary {
   background: var(--grad); border-color: transparent; color: var(--accent-ink);
-  font-weight: 800; box-shadow: 0 6px 18px rgba(255, 180, 84, 0.32);
+  font-weight: 800; box-shadow: 0 6px 18px color-mix(in srgb, var(--accent) 32%, transparent);
 }
 .btn--small { padding: 7px 12px; font-size: 0.85rem; min-height: 0; }
 /* Month/week steppers are thumb targets, so they keep the full 44px. */
-.btn--pager { min-width: 44px; min-height: 44px; padding: 0; font-size: 1.1rem; }
+.btn--pager { min-width: var(--tap); min-height: var(--tap); padding: 0; font-size: 1.1rem; }
 .btn:disabled { opacity: 0.5; }
 
 /* ---- floating glass tab bar ---- */
@@ -134,35 +476,47 @@ body::before {
   bottom: calc(14px + env(safe-area-inset-bottom));
   display: flex; align-items: stretch; gap: 2px;
   width: min(440px, calc(100vw - 24px));
-  background: rgba(13, 16, 48, 0.62);
+  background: var(--bar-bg);
   backdrop-filter: var(--blur); -webkit-backdrop-filter: var(--blur);
-  border: 1px solid var(--border); border-radius: 999px;
+  border: 1px solid var(--border); border-radius: var(--tab-radius);
   padding: 6px; z-index: 40;
   box-shadow: var(--shadow);
 }
 .tabbar a {
   flex: 1; text-align: center; padding: 8px 0 6px; text-decoration: none;
-  color: var(--dim); font-size: 0.6rem; font-weight: 600; border-radius: 999px;
+  color: var(--dim); font-size: 0.6rem; font-weight: 600; border-radius: var(--tab-radius);
   display: flex; flex-direction: column; align-items: center; gap: 2px;
   position: relative;
-  transition: background 180ms ease, color 180ms ease;
+  transition: background var(--motion) ease, color var(--motion) ease;
 }
 .tabbar a.active { color: var(--accent-ink); background: var(--accent); font-weight: 700; }
-.tabbar .icon { display: block; font-size: 1.15rem; }
+.tabbar .icon { display: flex; align-items: center; justify-content: center; height: 20px; }
 
 /* unread-style count on the Inbox tab */
 .tabbar .badge {
   position: absolute; top: 2px; right: calc(50% - 22px);
   min-width: 17px; height: 17px; padding: 0 4px;
-  border-radius: 999px; background: var(--accent-2); color: #1a1140;
+  border-radius: 999px; background: var(--accent-2); color: var(--accent-2-ink);
   font-size: 0.6rem; font-weight: 800; line-height: 17px;
 }
 .tabbar a.active .badge { background: var(--accent-ink); color: var(--accent); }
 
+/* ---- line icons ----
+   One 24px sprite drawn in currentColor, so an icon inherits whatever the
+   thing around it is already coloured with. Emoji couldn't do that, which is
+   why they had to go — the ones used as *data* (project icons, the 🎂 event
+   checkbox) are untouched. */
+.ico {
+  width: 22px; height: 22px; display: block; flex-shrink: 0;
+  fill: none; stroke: currentColor; stroke-width: 1.7;
+  stroke-linecap: round; stroke-linejoin: round;
+}
+.ico--sm { width: 18px; height: 18px; }
+
 /* ---- task rows ---- */
 .task-row {
   display: flex; align-items: flex-start; gap: 12px;
-  padding: 10px 0; border-bottom: 1px solid var(--glass-2);
+  padding: var(--row-pad) 0; border-bottom: 1px solid var(--hairline);
 }
 .task-row:last-child { border-bottom: 0; }
 .task-row__body { flex: 1; min-width: 0; }
@@ -178,16 +532,16 @@ body::before {
 
 /* 44px tap target with a smaller visible box, so the row stays compact */
 .check {
-  flex-shrink: 0; width: 44px; height: 44px; margin: -10px 0 -10px -10px;
+  flex-shrink: 0; width: var(--tap); height: var(--tap); margin: -10px 0 -10px -10px;
   display: grid; place-items: center;
   background: none; border: 0; padding: 0; cursor: pointer; color: inherit;
 }
 .check__box {
-  width: 23px; height: 23px; border-radius: 8px;
+  width: 23px; height: 23px; border-radius: var(--check-radius);
   border: 2px solid var(--border); display: grid; place-items: center;
   font-size: 0.8rem; line-height: 1; transition: background 160ms ease, border-color 160ms ease;
 }
-.check--done .check__box { background: var(--done); border-color: transparent; color: #06301c; }
+.check--done .check__box { background: var(--mark-done); border-color: transparent; color: var(--mark-done-ink); }
 .check--event .check__box { border-style: dashed; }
 
 /* priority pip: only p2/p3 get ink, so the common case stays quiet */
@@ -201,18 +555,18 @@ body::before {
   background: var(--glass-2); border: 1px solid var(--border);
   font-size: 0.72rem; font-weight: 600; color: var(--dim);
 }
-.chip--overdue { color: var(--danger-strong); border-color: rgba(255, 107, 107, 0.45); }
-.chip--today { color: var(--accent); border-color: rgba(255, 180, 84, 0.45); }
+.chip--overdue { color: var(--danger-strong); border-color: color-mix(in srgb, var(--danger-strong) 45%, transparent); }
+.chip--today { color: var(--accent-text); border-color: color-mix(in srgb, var(--accent-text) 45%, transparent); }
 /* a parsed value the app is only guessing at - dotted, and labelled in words */
 .chip--guess { border-style: dashed; }
 
 /* ---- segmented control + pager ---- */
 .segmented {
   display: flex; gap: 2px; padding: 4px; margin-bottom: 12px;
-  background: var(--glass-2); border: 1px solid var(--border); border-radius: 999px;
+  background: var(--glass-2); border: 1px solid var(--border); border-radius: var(--pill-radius);
 }
 .segmented button {
-  flex: 1; min-height: 36px; border: 0; border-radius: 999px; cursor: pointer;
+  flex: 1; min-height: 36px; border: 0; border-radius: var(--pill-radius); cursor: pointer;
   background: none; color: var(--dim); font: inherit; font-size: 0.85rem; font-weight: 600;
 }
 .segmented button.active { background: var(--accent); color: var(--accent-ink); font-weight: 800; }
@@ -224,17 +578,18 @@ body::before {
 .monthcell {
   aspect-ratio: 1; min-height: 40px; padding: 4px 0 0; cursor: pointer;
   display: flex; flex-direction: column; align-items: center; gap: 3px;
-  background: var(--glass-2); border: 1px solid transparent; border-radius: 10px;
+  /* Same reason as .dot: the cell's own border is reserved for "today". */
+  background: var(--track); border: 1px solid transparent; border-radius: 10px;
   color: var(--ink); font: inherit; font-size: 0.8rem;
 }
 .monthcell--outside { opacity: 0.35; }
-.monthcell--today { border-color: var(--accent); font-weight: 800; }
+.monthcell--today { border-color: var(--accent-text); font-weight: 800; }
 .monthcell__num { line-height: 1.1; }
 .monthcell__pips { display: flex; align-items: center; gap: 2px; flex-wrap: wrap; justify-content: center; }
 .monthcell__more { font-size: 0.6rem; font-style: normal; color: var(--dim); }
-.pip--cal { width: 5px; height: 5px; border-radius: 50%; background: var(--accent); }
-.pip--event { background: var(--accent-2); }
-.pip--done { background: var(--done); opacity: 0.6; }
+.pip--cal { width: 5px; height: 5px; border-radius: 50%; background: var(--mark); }
+.pip--event { background: var(--mark-2); }
+.pip--done { background: var(--mark-done); opacity: 0.6; }
 
 /* ---- hour grid, shared by week and day ---- */
 .weekgrid { display: flex; gap: 2px; }
@@ -253,42 +608,48 @@ body::before {
 /* Same height as a day header, so the hour labels line up with the grid. */
 .weekgrid__headspacer { height: 34px; }
 .weekgrid__head strong { color: var(--ink); font-size: 0.85rem; }
-.weekgrid__head--today strong { color: var(--accent); }
+.weekgrid__head--today strong { color: var(--accent-text); }
 
-.daycol { position: relative; background: var(--glass-2); border-radius: 8px; }
+.daycol { position: relative; background: var(--track); border-radius: 8px; }
 .daycol__slot {
   position: absolute; left: 0; right: 0; padding: 0; cursor: pointer;
-  background: none; border: 0; border-top: 1px solid var(--glass-2);
+  background: none; border: 0; border-top: 1px solid var(--hairline);
 }
 .daycol__slot:disabled { cursor: default; }
 .daycol__item {
   position: absolute; overflow: hidden; padding: 2px 4px;
   border-radius: 6px; font-size: 0.66rem; line-height: 1.2;
-  background: rgba(255, 180, 84, 0.28); border: 1px solid rgba(255, 180, 84, 0.5);
+  background: color-mix(in srgb, var(--mark) 28%, transparent);
+  border: 1px solid color-mix(in srgb, var(--mark) 50%, transparent);
   color: var(--ink);
 }
 .daycol__item--block {
-  background: rgba(167, 139, 250, 0.26); border-color: rgba(167, 139, 250, 0.5);
+  background: color-mix(in srgb, var(--mark-2) 26%, transparent);
+  border-color: color-mix(in srgb, var(--mark-2) 50%, transparent);
 }
 .daycol__time { color: var(--dim); }
 
 /* ---- habits ---- */
 .streak {
   padding: 3px 10px; border-radius: 999px; font-size: 0.78rem; font-weight: 800;
-  background: rgba(255, 180, 84, 0.22); border: 1px solid rgba(255, 180, 84, 0.45);
+  background: color-mix(in srgb, var(--mark) 22%, transparent);
+  border: 1px solid color-mix(in srgb, var(--mark) 45%, transparent);
 }
 .dots { display: flex; flex-wrap: wrap; gap: 4px; }
+/* --track, not --glass-2: a dot has no border to fall back on, and a white
+   tint on a white card is nothing at all. The track is ink-based in light and
+   white-based in dark, so the strip reads as a grid either way. */
 .dot {
   width: 10px; height: 10px; border-radius: 3px;
-  background: var(--glass-2); border: 1px solid transparent;
+  background: var(--track); border: 1px solid transparent;
 }
-.dot--done { background: var(--done); }
+.dot--done { background: var(--mark-done); }
 .dot--missed { background: none; border-color: var(--border); }
 
 /* ---- list rows (areas → projects) ---- */
 .listrow {
   display: flex; align-items: center; gap: 12px; padding: 10px 0;
-  border-bottom: 1px solid var(--glass-2); text-decoration: none; color: var(--ink);
+  border-bottom: 1px solid var(--hairline); text-decoration: none; color: var(--ink);
 }
 .listrow:last-child { border-bottom: 0; }
 .listrow__icon {
@@ -300,37 +661,37 @@ body::before {
 /* ---- bottom sheet ---- */
 .sheet {
   position: fixed; inset: 0; z-index: 60;
-  background: rgba(6, 8, 22, 0.55);
+  background: var(--scrim);
   display: flex; align-items: flex-end; justify-content: center;
 }
 .sheet__panel {
   width: min(440px, 100vw); max-height: 70vh; overflow-y: auto;
   padding: 16px 16px calc(20px + env(safe-area-inset-bottom));
-  background: rgba(13, 16, 48, 0.92);
+  background: var(--panel);
   border: 1px solid var(--border); border-radius: var(--radius) var(--radius) 0 0;
   backdrop-filter: var(--blur); -webkit-backdrop-filter: var(--blur);
 }
 
 /* ---- overdue banner + capacity meter ---- */
 .banner {
-  border: 1px solid rgba(255, 107, 107, 0.45);
-  background: rgba(255, 107, 107, 0.12);
+  border: 1px solid color-mix(in srgb, var(--danger-strong) 45%, transparent);
+  background: color-mix(in srgb, var(--danger-strong) 12%, transparent);
   border-radius: var(--radius-sm); padding: 10px 14px; margin-bottom: 14px;
   color: var(--danger-strong); font-size: 0.9rem;
 }
-.meter { height: 8px; border-radius: 999px; background: var(--glass-2); overflow: hidden; }
-.meter__fill { height: 100%; background: var(--grad); border-radius: 999px; }
-.meter__fill--over { background: linear-gradient(135deg, #ff9d6b, #ff6b6b); }
+.meter { height: 8px; border-radius: 999px; background: var(--track); overflow: hidden; }
+.meter__fill { height: 100%; background: var(--mark-grad); border-radius: 999px; }
+.meter__fill--over { background: var(--grad-over); }
 
 /* Anchors default to the browser's link colour, which read as a washed-out
    pink against this palette — hence the explicit colour. */
 .gear {
   font-size: 1.25rem; text-decoration: none; color: var(--ink);
   background: none; border: 0; cursor: pointer; font-family: inherit;
-  min-width: 44px; min-height: 44px;
+  min-width: var(--tap); min-height: var(--tap);
   display: inline-flex; align-items: center; justify-content: center;
 }
-.setting-row { padding: 8px 0; border-bottom: 1px solid var(--glass-2); }
+.setting-row { padding: 8px 0; border-bottom: 1px solid var(--hairline); }
 .setting-row:last-child { border-bottom: 0; }
 .input--num { width: 108px; text-align: right; padding: 8px 10px; }
 /* Native date/time inputs carry their own AM/PM text and picker icon, so they
@@ -355,7 +716,7 @@ body::before {
 .capture__pill {
   width: 100%; display: flex; align-items: center; gap: 8px;
   padding: 11px 16px; border-radius: 999px; cursor: pointer;
-  background: rgba(13, 16, 48, 0.62); color: var(--dim);
+  background: var(--bar-bg); color: var(--dim);
   border: 1px solid var(--border); font: inherit; font-size: 0.9rem; text-align: left;
   backdrop-filter: var(--blur); -webkit-backdrop-filter: var(--blur);
   box-shadow: var(--shadow-soft);
@@ -366,7 +727,7 @@ body::before {
   display: grid; place-items: center; font-weight: 800; font-size: 1rem; line-height: 1;
 }
 .capture__panel {
-  background: rgba(13, 16, 48, 0.78);
+  background: var(--panel-2);
   border: 1px solid var(--border); border-radius: var(--radius);
   padding: 10px; box-shadow: var(--shadow);
   backdrop-filter: var(--blur); -webkit-backdrop-filter: var(--blur);
@@ -379,11 +740,13 @@ body::before {
 .capture__chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
 .capture__hint { margin: 8px 4px 2px; font-size: 0.72rem; color: var(--dim); }
 
-/* ---- offline banner ---- */
+/* ---- offline banner ----
+   A fill in both modes, so it takes the bright warn and its own dark ink
+   rather than the mode's --warn, which flips to a deep amber in light. */
 .offline {
   position: fixed; top: 0; left: 0; right: 0; z-index: 70;
   padding: calc(6px + env(safe-area-inset-top)) 12px 6px;
-  background: var(--warn); color: #2a1a00;
+  background: var(--warn-fill); color: var(--warn-ink);
   font-size: 0.78rem; font-weight: 700; text-align: center;
 }
 
@@ -391,6 +754,92 @@ body::before {
 .spinner-wrap { min-height: 100dvh; display: grid; place-items: center; color: var(--dim); }
 .empty { text-align: center; color: var(--dim); padding: 28px 12px; }
 .empty__icon { font-size: 2rem; display: block; margin-bottom: 8px; }
+
+/* ---- Terrain's collapsed sections ----
+   Should and If-there's-time fold behind one line. It's a summary row, not a
+   different screen: the same <Section> renders it. */
+.section-toggle {
+  width: 100%; display: flex; align-items: center; justify-content: space-between; gap: 8px;
+  background: none; border: 0; padding: 4px 0; cursor: pointer;
+  color: var(--dim); font: inherit; font-size: 0.78rem; font-weight: 700;
+  text-transform: uppercase; letter-spacing: 0.1em;
+  min-height: var(--tap);
+}
+.section-toggle .ico { transition: transform var(--motion) ease; }
+.section-toggle[aria-expanded="true"] .ico { transform: rotate(45deg); }
+
+/* ---- Transit's spine ----
+   One rail down the day: hours on the left, timed work on the clock, undated
+   work below the last hour. */
+.spine { position: relative; }
+.spine::before {
+  content: ''; position: absolute; left: 40px; top: 0; bottom: 0;
+  width: 1px; background: var(--hairline);
+}
+.spine__hour {
+  position: absolute; left: 0; width: 34px; text-align: right;
+  font-size: 0.62rem; color: var(--dim);
+}
+.spine__rule { position: absolute; left: 40px; right: 0; border-top: 1px solid var(--hairline); }
+/* The items' own positioning context, so a clash can share its width in
+   percentages without having to know where the hour gutter ends. */
+.spine__lane { position: absolute; left: 46px; right: 0; top: 0; bottom: 0; }
+.spine__item {
+  position: absolute; overflow: hidden; padding: 4px 8px;
+  border-radius: var(--radius-sm); font-size: 0.75rem; line-height: 1.25;
+  background: color-mix(in srgb, var(--mark) 28%, transparent);
+  border: 1px solid color-mix(in srgb, var(--mark) 50%, transparent);
+  color: var(--ink);
+}
+.spine__item--block {
+  background: color-mix(in srgb, var(--mark-2) 26%, transparent);
+  border-color: color-mix(in srgb, var(--mark-2) 50%, transparent);
+}
+/* Inline, not stacked: a fifteen-minute item is one line tall, and a stacked
+   time label would push its title out of the box entirely. */
+.spine__time { color: var(--dim); font-size: 0.66rem; margin-right: 6px; }
+.spine__now {
+  position: absolute; left: 36px; right: 0; height: 2px;
+  background: var(--mark); border-radius: 2px;
+}
+.spine__now::before {
+  content: ''; position: absolute; left: -4px; top: -3px;
+  width: 8px; height: 8px; border-radius: 50%; background: var(--mark);
+}
+
+/* ---- Appearance screen ---- */
+.swatches { display: flex; gap: 10px; flex-wrap: wrap; }
+.swatch {
+  width: var(--tap); height: var(--tap); padding: 0; cursor: pointer;
+  border-radius: 50%; border: 2px solid transparent;
+  background: none; display: grid; place-items: center;
+}
+.swatch__disc {
+  width: 30px; height: 30px; border-radius: 50%;
+  background: linear-gradient(135deg, var(--sw-accent) 50%, var(--sw-accent-2) 50%);
+  box-shadow: inset 0 0 0 1px var(--border);
+}
+.swatch[aria-pressed="true"] { border-color: var(--accent-text); }
+.swatch[aria-pressed="true"] .swatch__disc { transform: scale(0.86); }
+
+.choice {
+  width: 100%; display: flex; align-items: center; gap: 12px; text-align: left;
+  background: none; border: 0; padding: 10px 0; cursor: pointer;
+  color: var(--ink); font: inherit; min-height: var(--tap);
+  border-bottom: 1px solid var(--hairline); text-decoration: none;
+}
+.choice:last-child { border-bottom: 0; }
+.choice__radio {
+  width: 20px; height: 20px; flex-shrink: 0; border-radius: 50%;
+  border: 2px solid var(--border); display: grid; place-items: center;
+}
+.choice[aria-pressed="true"] .choice__radio { border-color: var(--accent-text); }
+.choice[aria-pressed="true"] .choice__radio::after {
+  content: ''; width: 10px; height: 10px; border-radius: 50%; background: var(--accent);
+}
+.choice__body { flex: 1; min-width: 0; }
+.choice__name { font-weight: 700; }
+.choice__sub { display: block; font-size: 0.75rem; color: var(--dim); margin-top: 2px; }
 
 @media (prefers-reduced-motion: reduce) {
   * { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; }

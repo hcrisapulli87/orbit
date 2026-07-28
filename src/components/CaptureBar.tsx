@@ -5,6 +5,7 @@ import { useData } from '../data/DataProvider'
 import { describeRecurrence, inferEvent, parseCapture } from '../domain/capture'
 import type { RecurrenceHint } from '../domain/capture'
 import { formatTime, relativeLabel, todayISO } from '../domain/day'
+import { Icon } from './Icon'
 
 const PRIORITY_LABEL = ['', 'low', 'med', 'high']
 
@@ -142,8 +143,8 @@ export function CaptureBar() {
             requestAnimationFrame(() => inputRef.current?.focus())
           }}
         >
-          <span className="capture__plus" aria-hidden="true">
-            +
+          <span className="capture__plus">
+            <Icon name="plus" small />
           </span>
           Add anything…
         </button>

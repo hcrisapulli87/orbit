@@ -5,6 +5,9 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
+    "demo": "vite --mode demo",
+    "demo:build": "tsc && vite build --mode demo --outDir dist-demo",
+    "demo:preview": "vite preview --outDir dist-demo",
     "build": "tsc && vite build",
     "preview": "vite preview",
     "typecheck": "tsc --noEmit",

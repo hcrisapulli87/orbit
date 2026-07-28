@@ -14,6 +14,7 @@ import { suggestBlocks } from '../domain/planner'
 import { minutesToTime, parseTimeToMinutes } from '../domain/day'
 import { defaultEstimateFor } from '../domain/planner'
 import { useRealtime } from './useRealtime'
+import { applyAppearance, storeAppearance } from '../lib/appearance'
 import type {
   Area, Block, NewSeries, NewTask, Project, Series, Settings, Task, Template, TemplateItem,
 } from './types'
@@ -87,6 +88,21 @@ export function DataProvider({ children }: { children: ReactNode }) {
 
   useEffect(reload, [reload])
   useRealtime(TABLES, reload)
+
+  // The appearance follows the settings row, whether it changed here, on the
+  // phone (realtime), or a moment ago in the picker (optimistic). Applying it
+  // in one effect rather than at each call site means there is exactly one
+  // place where the DOM and the mirror can disagree with Postgres — and it
+  // runs after the paint main.tsx already made, so nothing flashes.
+  useEffect(() => {
+    const appearance = {
+      theme: settings.ui_theme,
+      palette: settings.ui_palette,
+      mode: settings.ui_mode,
+    }
+    applyAppearance(appearance)
+    storeAppearance(appearance)
+  }, [settings.ui_theme, settings.ui_palette, settings.ui_mode])
 
   // Optimistic writes: the UI moves immediately and resyncs from the server on
   // failure. Ticking a checkbox that waits on a round trip feels broken.

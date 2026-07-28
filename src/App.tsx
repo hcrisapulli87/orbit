@@ -11,6 +11,7 @@ import Inbox from './screens/Inbox'
 import Lists from './screens/Lists'
 import Habits from './screens/Habits'
 import Settings from './screens/Settings'
+import Appearance from './screens/Appearance'
 import ProjectDetail from './screens/ProjectDetail'
 import TaskDetail from './screens/TaskDetail'
 import Templates from './screens/Templates'
@@ -39,6 +40,7 @@ export default function App() {
             <Route path="/lists" element={<Lists />} />
             <Route path="/habits" element={<Habits />} />
             <Route path="/settings" element={<Settings />} />
+            <Route path="/appearance" element={<Appearance />} />
             <Route path="/project/:id" element={<ProjectDetail />} />
             <Route path="/task/:id" element={<TaskDetail />} />
             <Route path="/templates" element={<Templates />} />

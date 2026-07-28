@@ -1,11 +1,14 @@
-import { useMemo } from 'react'
+import { useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { ScreenHeader } from '../components/ScreenHeader'
 import { TaskRow } from '../components/TaskRow'
+import { Icon } from '../components/Icon'
 import { EmptyState } from '../components/ui/EmptyState'
 import { useData } from '../data/DataProvider'
 import { buildToday } from '../domain/planner'
+import { collapsesSections, usesSpine } from '../domain/appearance'
 import { formatTime, relativeLabel, todayISO, weekdayOf } from '../domain/day'
+import TodaySpine from './TodaySpine'
 import type { Task } from '../data/types'
 
 const WEEKDAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']
@@ -35,6 +38,17 @@ export default function Today() {
   const nothing =
     plan.must.length + plan.should.length + plan.ifTime.length + plan.events.length === 0
 
+  // Three of the four themes restyle this list; Transit is a different view of
+  // the same plan, so it gets its own component rather than a pile of CSS.
+  // The plan itself is built above either way — the two can't disagree.
+  if (usesSpine(settings.ui_theme)) {
+    return <TodaySpine plan={plan} blocks={todayBlocks} doneToday={doneToday} />
+  }
+
+  // Terrain shows only what must happen; Should and If-there's-time fold behind
+  // a summary line. It's a prop on the section, not a second screen.
+  const collapse = collapsesSections(settings.ui_theme)
+
   return (
     <main className="screen">
       <ScreenHeader
@@ -42,7 +56,7 @@ export default function Today() {
         sub={relativeLabel(today, today)}
         action={
           <Link className="gear" to="/settings" aria-label="Settings">
-            ⚙️
+            <Icon name="gear" />
           </Link>
         }
       />
@@ -100,8 +114,8 @@ export default function Today() {
       )}
 
       <Section title="Must" tasks={plan.must} />
-      <Section title="Should" tasks={plan.should} />
-      <Section title="If there's time" tasks={plan.ifTime} />
+      <Section title="Should" tasks={plan.should} collapsed={collapse} />
+      <Section title="If there's time" tasks={plan.ifTime} collapsed={collapse} />
 
       {plan.events.length > 0 && (
         <div className="card">
@@ -124,14 +138,47 @@ export default function Today() {
   )
 }
 
-function Section({ title, tasks }: { title: string; tasks: Task[] }) {
+/**
+ * `collapsed` starts the section folded rather than hiding it: the count is
+ * still on screen, and opening it is one tap. Nothing is ever removed from
+ * Today — the whole point of the plan is that it tells you the truth about
+ * how much there is.
+ */
+function Section({
+  title,
+  tasks,
+  collapsed = false,
+}: {
+  title: string
+  tasks: Task[]
+  collapsed?: boolean
+}) {
+  // Starts false rather than `!collapsed`: the settings row arrives a moment
+  // after mount, so the theme — and with it `collapsed` — flips from under us.
+  // Initial state would have been captured before the flip and stuck open.
+  const [open, setOpen] = useState(false)
   if (tasks.length === 0) return null
+
+  if (!collapsed) {
+    return (
+      <div className="card">
+        <h2>{title}</h2>
+        {tasks.map((t) => (
+          <TaskRow key={t.id} task={t} />
+        ))}
+      </div>
+    )
+  }
+
   return (
     <div className="card">
-      <h2>{title}</h2>
-      {tasks.map((t) => (
-        <TaskRow key={t.id} task={t} />
-      ))}
+      <button className="section-toggle" aria-expanded={open} onClick={() => setOpen(!open)}>
+        <span>
+          {title} · {tasks.length}
+        </span>
+        <Icon name="plus" small />
+      </button>
+      {open && tasks.map((t) => <TaskRow key={t.id} task={t} />)}
     </div>
   )
 }

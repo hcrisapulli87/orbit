@@ -1,6 +1,9 @@
 node_modules
 dist
+dist-demo
 dist-ssr
+demo-screens
+.playwright-mcp
 .env
 .env.local
 *.local

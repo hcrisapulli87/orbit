@@ -1,6 +1,8 @@
 // Row types mirror the database columns verbatim — snake_case, no mapping layer.
 // Keeping the two identical means a query result is already the app's type.
 
+import type { ModeId, PaletteId, ThemeId } from '../domain/appearance'
+
 export type TaskKind = 'task' | 'habit' | 'event'
 export type TaskStatus = 'open' | 'done' | 'dropped'
 export type TaskSource = 'app' | 'capture' | 'recurrence' | 'template' | 'import'
@@ -154,6 +156,11 @@ export interface Settings {
   day_end: string
   push_lead_min: number
   digest_enabled: boolean
+  /** The three appearance axes. Postgres is the source of truth for these;
+      localStorage only mirrors them so a cold start doesn't flash. */
+  ui_theme: ThemeId
+  ui_palette: PaletteId
+  ui_mode: ModeId
   created_at: string
 }
 

@@ -289,6 +289,26 @@ left join public.task_series   s on s.id = t.series_id
 left join public.task_projects p on p.id = t.project_id
 left join public.task_areas    a on a.id = coalesce(t.area_id, p.area_id);
 
+-- ── v8: appearance ────────────────────────────────────────────────────────────
+
+-- Three text columns on the settings row rather than a table of their own:
+-- there is exactly one of each per owner, and they change about as often as
+-- the day length does.
+--
+-- Checked in the database as well as in TypeScript because a value that isn't
+-- one of these is a value the stylesheet has no block for — better to reject
+-- it at the write than to render an unstyled app.
+--
+-- Defaults match DEFAULT_APPEARANCE in src/domain/appearance.ts, so an account
+-- that never opens the Appearance screen gets today's Orbit.
+alter table public.task_settings
+  add column if not exists ui_theme   text not null default 'halo'
+    check (ui_theme in ('halo', 'telemetry', 'terrain', 'transit')),
+  add column if not exists ui_palette text not null default 'indigo'
+    check (ui_palette in ('indigo', 'lagoon', 'ember', 'orchid', 'phosphor')),
+  add column if not exists ui_mode    text not null default 'system'
+    check (ui_mode in ('system', 'light', 'dark'));
+
 -- ── Seeds ─────────────────────────────────────────────────────────────────────
 -- Orbit is single-user, so the seeds belong to one account. Change the email
 -- below if the owner ever changes. Idempotent: re-running inserts nothing new.
