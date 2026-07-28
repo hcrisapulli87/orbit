@@ -51,7 +51,27 @@ const AGE_WEIGHT = 0.3
 const AGE_CAP_DAYS = 90
 
 /** How far ahead Today will look for work that isn't yet a commitment. */
-const TODAY_HORIZON_DAYS = 7
+export const TODAY_HORIZON_DAYS = 7
+
+/**
+ * Is this near enough to be worth showing?
+ *
+ * Recurring series are materialised sixty days ahead, so without a cutoff a
+ * single daily habit puts sixty identical rows on the screen and buries
+ * everything that actually matters. Undated work has no horizon to be beyond
+ * and stays; a commitment is never dropped, whatever its date; and a series
+ * asking for a longer lead time gets the lead time it asked for.
+ *
+ * Shared by Today and by the Lists counts, so "how much loose work is in this
+ * area" answers the same question the plan does. Counting all sixty days there
+ * reported eighty-seven open tasks in Health — arithmetically true, and no use
+ * to anyone.
+ */
+export function withinHorizon(task: Plannable, today: ISODate): boolean {
+  if (task.due_on === null) return true
+  if (compareISO(task.due_on, today) <= 0) return true
+  return daysBetween(today, task.due_on) <= Math.max(TODAY_HORIZON_DAYS, task.lead_days ?? 0)
+}
 
 /** Default minutes by kind and priority, used when no estimate was given. */
 const ESTIMATE_BY_PRIORITY = [20, 25, 30, 45]
@@ -196,21 +216,8 @@ export function buildToday<T extends Plannable>(
 
   const isCommitment = (t: T) => t.due_on !== null && compareISO(t.due_on, today) <= 0
 
-  /**
-   * Today is a day, not a backlog.
-   *
-   * Recurring series are materialised sixty days ahead, so without a cutoff a
-   * single daily habit puts sixty identical rows on the screen and buries
-   * everything that actually matters. Undated work has no horizon to be beyond
-   * and stays; a commitment is never dropped, whatever its date; and a series
-   * asking for a longer lead time gets the lead time it asked for.
-   */
-  const withinHorizon = (t: T) =>
-    t.due_on === null ||
-    isCommitment(t) ||
-    daysBetween(today, t.due_on) <= Math.max(TODAY_HORIZON_DAYS, t.lead_days ?? 0)
-
-  const work = live.filter((t) => t.kind !== 'event' && withinHorizon(t)).sort(byScore)
+  // Today is a day, not a backlog.
+  const work = live.filter((t) => t.kind !== 'event' && withinHorizon(t, today)).sort(byScore)
 
   const must = work.filter(isCommitment)
   const overdue = must.filter((t) => compareISO(t.due_on!, today) < 0)

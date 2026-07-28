@@ -753,7 +753,10 @@ body::before {
 /* ---- loading / empty ---- */
 .spinner-wrap { min-height: 100dvh; display: grid; place-items: center; color: var(--dim); }
 .empty { text-align: center; color: var(--dim); padding: 28px 12px; }
-.empty__icon { font-size: 2rem; display: block; margin-bottom: 8px; }
+/* The glyph inherits .empty's --dim through currentColor, so it sits quieter
+   than the line under it without needing a colour of its own. */
+.empty__icon { display: flex; justify-content: center; margin-bottom: 10px; }
+.empty__icon .ico { width: 32px; height: 32px; stroke-width: 1.4; }
 
 /* ---- Terrain's collapsed sections ----
    Should and If-there's-time fold behind one line. It's a summary row, not a

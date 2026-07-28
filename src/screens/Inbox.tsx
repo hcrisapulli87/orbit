@@ -23,7 +23,7 @@ export default function Inbox() {
 
       {inbox.length === 0 ? (
         <EmptyState
-          icon="📥"
+          icon="inbox"
           title="Inbox zero"
           hint="Anything captured without a date or project lands here."
         />

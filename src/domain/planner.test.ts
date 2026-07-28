@@ -1,5 +1,13 @@
 import { describe, it, expect } from 'vitest'
-import { buildToday, defaultEstimateFor, isDeferred, scoreTask, suggestBlocks } from './planner'
+import {
+  TODAY_HORIZON_DAYS,
+  buildToday,
+  defaultEstimateFor,
+  isDeferred,
+  scoreTask,
+  suggestBlocks,
+  withinHorizon,
+} from './planner'
 import type { Plannable } from './planner'
 
 const TODAY = '2026-07-27'
@@ -269,3 +277,50 @@ describe('suggestBlocks', () => {
     expect(suggest([birthday, later, finished])).toEqual([])
   })
 })
+
+describe('withinHorizon', () => {
+  // The rule Today and the Lists counts share. Both answer "is this near
+  // enough to be worth showing", and they have to answer it the same way.
+  it('keeps undated work, which has no horizon to be beyond', () => {
+    expect(withinHorizon(task({ due_on: null }), TODAY)).toBe(true)
+  })
+
+  it('keeps anything already due, however old', () => {
+    expect(withinHorizon(task({ due_on: '2026-07-27' }), TODAY)).toBe(true)
+    expect(withinHorizon(task({ due_on: '2025-01-01' }), TODAY)).toBe(true)
+  })
+
+  it('keeps work inside the horizon and drops work beyond it', () => {
+    expect(withinHorizon(task({ due_on: '2026-08-03' }), TODAY)).toBe(true)  // +7
+    expect(withinHorizon(task({ due_on: '2026-08-04' }), TODAY)).toBe(false) // +8
+  })
+
+  it('honours a longer lead time when a series asks for one', () => {
+    // A birthday with a month of lead should surface a month out, not a week.
+    const birthday = task({ due_on: '2026-08-20', lead_days: 30 })
+    expect(withinHorizon(birthday, TODAY)).toBe(true)
+    expect(withinHorizon({ ...birthday, lead_days: 0 }, TODAY)).toBe(false)
+  })
+
+  it('never shortens the horizon for a series with a small lead', () => {
+    expect(withinHorizon(task({ due_on: '2026-08-01', lead_days: 1 }), TODAY)).toBe(true)
+  })
+
+  it('is the cutoff buildToday actually applies', () => {
+    // Sixty materialised occurrences of one daily habit: the case the horizon
+    // exists for. Only the ones inside it reach the screen.
+    const daily = Array.from({ length: 60 }, (_, i) =>
+      task({ id: `d${i}`, kind: 'habit', due_on: addDaysISO(TODAY, i + 1) }),
+    )
+    const plan = buildToday(daily, { today: TODAY, capacityMin: 180 })
+    const shown = [...plan.must, ...plan.should, ...plan.ifTime]
+    expect(shown).toHaveLength(TODAY_HORIZON_DAYS)
+  })
+})
+
+/** Local to this block: the planner's own date maths is what's under test. */
+function addDaysISO(iso: string, days: number): string {
+  const d = new Date(`${iso}T00:00:00Z`)
+  d.setUTCDate(d.getUTCDate() + days)
+  return d.toISOString().slice(0, 10)
+}

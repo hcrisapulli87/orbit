@@ -1,19 +1,32 @@
 import { Link } from 'react-router-dom'
 import { ScreenHeader } from '../components/ScreenHeader'
+import { Icon } from '../components/Icon'
 import { EmptyState } from '../components/ui/EmptyState'
 import { ProgressBar } from '../components/ui/ProgressBar'
 import { useData } from '../data/DataProvider'
+import { withinHorizon } from '../domain/planner'
+import { todayISO } from '../domain/day'
 
 export default function Lists() {
   const { areas, projects, tasks } = useData()
+  const today = todayISO()
 
   const countsFor = (projectId: string) => {
     const own = tasks.filter((t) => t.project_id === projectId && t.parent_id === null)
     return { done: own.filter((t) => t.status === 'done').length, total: own.length }
   }
 
+  // Near enough to act on, by the same rule Today uses — otherwise a daily
+  // habit's sixty materialised occurrences dominate the count and it stops
+  // meaning "there is loose work here".
   const looseByArea = (areaId: string) =>
-    tasks.filter((t) => t.area_id === areaId && t.project_id === null && t.status === 'open').length
+    tasks.filter(
+      (t) =>
+        t.area_id === areaId &&
+        t.project_id === null &&
+        t.status === 'open' &&
+        withinHorizon(t, today),
+    ).length
 
   return (
     <main className="screen">
@@ -21,14 +34,14 @@ export default function Lists() {
         title="Lists"
         action={
           <Link className="gear" to="/templates" aria-label="Templates">
-            🧩
+            <Icon name="templates" />
           </Link>
         }
       />
 
       {areas.length === 0 ? (
         <EmptyState
-          icon="🧺"
+          icon="lists"
           title="No areas yet"
           hint="Run supabase/schema.sql to seed Work, Home, Car, Health, Money, Personal and Dates."
         />

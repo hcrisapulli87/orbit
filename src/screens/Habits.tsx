@@ -44,7 +44,7 @@ export default function Habits() {
 
       {habits.length === 0 && upkeep.length === 0 && (
         <EmptyState
-          icon="🔁"
+          icon="habits"
           title="Nothing repeating yet"
           hint="Capture something like “stretch every day” or “bins every tue”."
         />

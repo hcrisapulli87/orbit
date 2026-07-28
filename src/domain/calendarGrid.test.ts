@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { layoutTimedItems, monthGrid, monthLabel, weekDays } from './calendarGrid'
+import { layoutTimedItems, monthGrid, monthLabel, visibleWindow, weekDays } from './calendarGrid'
 
 describe('monthGrid', () => {
   it('always returns 6 rows of 7, so the grid never reflows between months', () => {
@@ -104,5 +104,54 @@ describe('layoutTimedItems', () => {
 
   it('handles an empty day', () => {
     expect(layoutTimedItems([])).toEqual([])
+  })
+})
+
+describe('visibleWindow', () => {
+  const at = (startMin: number, endMin: number) => ({ startMin, endMin })
+  // 8am–9pm, Orbit's defaults.
+  const DAY_START = 480
+  const DAY_END = 1260
+
+  it('is just the configured day when everything fits inside it', () => {
+    expect(visibleWindow([at(540, 600), at(780, 840)], DAY_START, DAY_END)).toEqual({
+      startMin: DAY_START,
+      endMin: DAY_END,
+    })
+  })
+
+  it('is the configured day when there is nothing to draw', () => {
+    expect(visibleWindow([], DAY_START, DAY_END)).toEqual({
+      startMin: DAY_START,
+      endMin: DAY_END,
+    })
+  })
+
+  it('reaches back for something before the day starts', () => {
+    // A 6:30am gym session. Clamping it to 8am would draw it at a time it
+    // isn't; leaving it alone would float it above the grid with no hour
+    // label. The window opens at 6am instead.
+    expect(visibleWindow([at(390, 450)], DAY_START, DAY_END).startMin).toBe(360)
+  })
+
+  it('reaches forward for something after the day ends', () => {
+    expect(visibleWindow([at(1290, 1320)], DAY_START, DAY_END).endMin).toBe(1320)
+  })
+
+  it('rounds out to whole hours so the labels keep lining up', () => {
+    const { startMin, endMin } = visibleWindow([at(377, 1281)], DAY_START, DAY_END)
+    expect(startMin % 60).toBe(0)
+    expect(endMin % 60).toBe(0)
+    expect(startMin).toBe(360)
+    expect(endMin).toBe(1320)
+  })
+
+  it('spans every entry it is given, which is how a week stays aligned', () => {
+    // Seven columns share one window: Monday's early start and Friday's late
+    // finish both have to be inside it or the columns drift from the gutter.
+    expect(visibleWindow([at(390, 450), at(600, 660), at(1290, 1350)], DAY_START, DAY_END)).toEqual({
+      startMin: 360,
+      endMin: 1380,
+    })
   })
 })

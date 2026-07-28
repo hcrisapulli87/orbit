@@ -95,7 +95,7 @@ supabase/
 
 `domain/` is the heavy-tested half: recurrence, capture parsing, planner
 scoring, streaks, calendar geometry, template instantiation, appearance
-contrast. 276 tests, all pure, `now` always injected, no clock mocking.
+contrast. 298 tests, all pure, `now` always injected, no clock mocking.
 
 ## Setup
 

@@ -5,7 +5,7 @@ import { Icon } from '../components/Icon'
 import { EmptyState } from '../components/ui/EmptyState'
 import { HOUR_PX, timedEntriesFor } from '../components/calendar/DayColumn'
 import type { TimedEntry } from '../components/calendar/DayColumn'
-import { layoutTimedItems } from '../domain/calendarGrid'
+import { layoutTimedItems, visibleWindow } from '../domain/calendarGrid'
 import { useData } from '../data/DataProvider'
 import { formatTime, minutesToTime, parseTimeToMinutes, relativeLabel, todayISO, weekdayOf } from '../domain/day'
 import type { TodayPlan } from '../domain/planner'
@@ -72,11 +72,9 @@ export default function TodaySpine({
       .map((l) => [l.id, l]),
   )
 
-  // The rail grows to fit rather than clamping. Something at 6am on a day that
-  // starts at 8 gets an earlier rail; pinning it to 8am would draw it at a time
-  // it isn't, which is the one thing a timeline exists not to do.
-  const railStart = Math.min(dayStart, ...onClock.map((e) => Math.floor(e.startMin / 60) * 60))
-  const railEnd = Math.max(dayEnd, ...onClock.map((e) => Math.ceil(e.endMin / 60) * 60))
+  // The rail grows to fit rather than clamping — the same rule, and the same
+  // function, the calendar's grids use.
+  const { startMin: railStart, endMin: railEnd } = visibleWindow(onClock, dayStart, dayEnd)
 
   const hours = Math.max(1, Math.ceil((railEnd - railStart) / 60))
   const railHeight = hours * HOUR_PX
@@ -175,7 +173,7 @@ export default function TodaySpine({
 
       {onClock.length === 0 && unscheduled.length === 0 && plan.events.length === 0 && (
         <EmptyState
-          icon="🛤️"
+          icon="today"
           title="Nothing on the rail"
           hint="Capture something and it will show up here."
         />

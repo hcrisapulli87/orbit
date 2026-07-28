@@ -19,6 +19,10 @@ const PATHS = {
   habits: 'M17 2.5l3 3-3 3 M20 5.5H8.5a4.5 4.5 0 0 0-4.5 4.5v1 M7 21.5l-3-3 3-3 M4 18.5h11.5a4.5 4.5 0 0 0 4.5-4.5v-1',
   gear: 'M12 15.2a3.2 3.2 0 1 0 0-6.4 3.2 3.2 0 0 0 0 6.4z M19.3 14.2l1.7 1.3-1.9 3.3-2-.8a7.7 7.7 0 0 1-2 1.2l-.3 2.1h-3.8l-.3-2.1a7.7 7.7 0 0 1-2-1.2l-2 .8-1.9-3.3 1.7-1.3a7.8 7.8 0 0 1 0-2.4L2.8 10.5l1.9-3.3 2 .8a7.7 7.7 0 0 1 2-1.2L9 4.7h3.8l.3 2.1c.72.28 1.39.69 2 1.2l2-.8 1.9 3.3-1.7 1.3c.1.79.1 1.6 0 2.4z',
   plus: 'M12 5v14 M5 12h14',
+  // layers: a thing assembled from parts you've stacked up before
+  templates: 'M12 3l8.5 4.75L12 12.5 3.5 7.75z M3.5 12.25L12 17l8.5-4.75 M3.5 16.5L12 21.25l8.5-4.75',
+  // struck-through circle: the thing you asked for isn't here
+  missing: 'M12 21.2a9.2 9.2 0 1 0 0-18.4 9.2 9.2 0 0 0 0 18.4z M8.5 8.5l7 7',
 } as const
 
 export type IconName = keyof typeof PATHS

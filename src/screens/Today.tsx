@@ -110,7 +110,7 @@ export default function Today() {
       )}
 
       {nothing && (
-        <EmptyState icon="🌅" title="Nothing needs you today" hint="Capture something and it will show up here." />
+        <EmptyState icon="today" title="Nothing needs you today" hint="Capture something and it will show up here." />
       )}
 
       <Section title="Must" tasks={plan.must} />

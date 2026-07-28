@@ -21,7 +21,7 @@ export default function ProjectDetail() {
     return (
       <main className="screen">
         <ScreenHeader title="Not found" />
-        <EmptyState icon="🤷" title="No such project" hint="It may have been archived." />
+        <EmptyState icon="missing" title="No such project" hint="It may have been archived." />
       </main>
     )
   }

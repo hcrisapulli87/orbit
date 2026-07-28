@@ -44,6 +44,31 @@ export interface TimedItem {
   end: number
 }
 
+/**
+ * The hours a grid actually has to draw: the configured day, widened to hold
+ * anything that falls outside it.
+ *
+ * A 6:30am gym session on a day that starts at 8 has to go somewhere. Clamping
+ * it to 8am draws it at a time it isn't — the one thing a calendar must not do
+ * — and leaving it unclamped puts it at a negative offset, floating above the
+ * grid with no hour label beside it, which is what Orbit did until now.
+ * Growing the window is the only option that stays honest.
+ *
+ * Rounded out to whole hours so the labels still line up with the rows, and
+ * given every day in the view at once so the seven columns of a week share one
+ * window and stay aligned.
+ */
+export function visibleWindow(
+  entries: { startMin: number; endMin: number }[],
+  dayStartMin: number,
+  dayEndMin: number,
+): { startMin: number; endMin: number } {
+  return {
+    startMin: Math.min(dayStartMin, ...entries.map((e) => Math.floor(e.startMin / 60) * 60)),
+    endMin: Math.max(dayEndMin, ...entries.map((e) => Math.ceil(e.endMin / 60) * 60)),
+  }
+}
+
 export interface TimedLayout {
   id: string
   /** Which column within its overlap group, 0-based. */

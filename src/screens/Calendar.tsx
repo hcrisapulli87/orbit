@@ -4,7 +4,7 @@ import { TaskRow } from '../components/TaskRow'
 import { SegmentedControl } from '../components/ui/SegmentedControl'
 import { DayColumn, HOUR_PX, timedEntriesFor } from '../components/calendar/DayColumn'
 import { useData } from '../data/DataProvider'
-import { monthGrid, monthLabel, weekDays } from '../domain/calendarGrid'
+import { monthGrid, monthLabel, visibleWindow, weekDays } from '../domain/calendarGrid'
 import {
   addDays, addMonthsClamped, formatTime, minutesToTime, parseTimeToMinutes, relativeLabel, todayISO,
 } from '../domain/day'
@@ -231,16 +231,33 @@ function WeekView({
 }) {
   const days = weekDays(cursor)
 
+  // One window for all seven columns — computed from the whole week, so a
+  // 6:30am Monday moves every column's grid rather than knocking Monday out of
+  // alignment with the hour labels beside it.
+  const entriesByDay = new Map(
+    days.map((date) => [
+      date,
+      [
+        ...timedEntriesFor(byDay.get(date) ?? []),
+        ...blockEntries(blocksByDay.get(date) ?? [], tasks),
+      ],
+    ]),
+  )
+  const { startMin, endMin } = visibleWindow(
+    [...entriesByDay.values()].flat(),
+    dayStartMin,
+    dayEndMin,
+  )
+
   return (
     <div className="card">
       <div className="weekgrid">
         <div className="weekgrid__gutter">
           {/* Matches the day-header height, so the labels line up with the rows. */}
           <div className="weekgrid__headspacer" aria-hidden="true" />
-          <HourLabels startMin={dayStartMin} endMin={dayEndMin} />
+          <HourLabels startMin={startMin} endMin={endMin} />
         </div>
         {days.map((date) => {
-          const items = byDay.get(date) ?? []
           return (
             <div className="weekgrid__day" key={date}>
               <button
@@ -251,12 +268,9 @@ function WeekView({
                 <strong>{Number(date.slice(8))}</strong>
               </button>
               <DayColumn
-                entries={[
-                  ...timedEntriesFor(items),
-                  ...blockEntries(blocksByDay.get(date) ?? [], tasks),
-                ]}
-                dayStartMin={dayStartMin}
-                dayEndMin={dayEndMin}
+                entries={entriesByDay.get(date) ?? []}
+                dayStartMin={startMin}
+                dayEndMin={endMin}
               />
             </div>
           )
@@ -287,6 +301,7 @@ function DayView({
   const items = byDay.get(date) ?? []
   const untimed = items.filter((t) => !t.due_time)
   const entries = [...timedEntriesFor(items), ...blockEntries(blocks, tasks)]
+  const { startMin, endMin } = visibleWindow(entries, dayStartMin, dayEndMin)
 
   // What you'd plausibly block out: this day's open work, then anything else
   // still open. No search box — the list is short enough to scan.
@@ -322,16 +337,16 @@ function DayView({
       </div>
 
       <div className="card">
-        <h2>{formatTime(minutesToTime(dayStartMin))} – {formatTime(minutesToTime(dayEndMin))}</h2>
+        <h2>{formatTime(minutesToTime(startMin))} – {formatTime(minutesToTime(endMin))}</h2>
         <div className="weekgrid weekgrid--single">
           <div className="weekgrid__gutter">
-            <HourLabels startMin={dayStartMin} endMin={dayEndMin} />
+            <HourLabels startMin={startMin} endMin={endMin} />
           </div>
           <div className="weekgrid__day">
             <DayColumn
               entries={entries}
-              dayStartMin={dayStartMin}
-              dayEndMin={dayEndMin}
+              dayStartMin={startMin}
+              dayEndMin={endMin}
               onSlotTap={setSlot}
             />
           </div>

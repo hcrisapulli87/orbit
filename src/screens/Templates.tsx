@@ -36,7 +36,7 @@ export default function Templates() {
 
       {templates.length === 0 ? (
         <EmptyState
-          icon="🧩"
+          icon="templates"
           title="No templates yet"
           hint="Open a project and tap “Save as template” once you’ve done it once — that’s how these get made."
         />
