@@ -2,8 +2,8 @@ import { createContext, useCallback, useContext, useEffect, useState } from 'rea
 import type { ReactNode } from 'react'
 import { useAuth } from '../auth/AuthProvider'
 import { todayISO } from '../domain/day'
-import { fetchAreas } from './areas'
-import { fetchProjects } from './projects'
+import { createArea, fetchAreas, updateArea } from './areas'
+import { archiveProject, createProject, fetchProjects, updateProject } from './projects'
 import { createTask, deleteTask, fetchTasks, setTaskDone, updateTask } from './tasks'
 import {
   adoptAsFirstOccurrence, advanceAfterCompletion, createSeries, deleteSeries, ensureOccurrences,
@@ -49,6 +49,11 @@ interface DataContextValue {
   toggleTask: (task: Task) => Promise<void>
   patchTask: (id: string, patch: Partial<Task>) => Promise<void>
   removeTask: (id: string) => Promise<void>
+  addProject: (project: Parameters<typeof createProject>[1]) => Promise<Project | null>
+  patchProject: (id: string, patch: Partial<Project>) => Promise<void>
+  removeProject: (id: string) => Promise<void>
+  addArea: (area: Parameters<typeof createArea>[1]) => Promise<Area | null>
+  patchArea: (id: string, patch: Partial<Area>) => Promise<void>
 }
 
 const DataContext = createContext<DataContextValue | undefined>(undefined)
@@ -257,6 +262,79 @@ export function DataProvider({ children }: { children: ReactNode }) {
     [user, reload],
   )
 
+  // Lists, projects and areas. All three were readable and none was writable,
+  // so the seeded rows were the only rows that could ever exist.
+  const addProject = useCallback(
+    async (project: Parameters<typeof createProject>[1]) => {
+      if (!user) return null
+      try {
+        const created = await createProject(user.id, project)
+        setProjects((prev) => [...prev, created])
+        return created
+      } catch (e: unknown) {
+        setError(e instanceof Error ? e.message : 'Could not create that')
+        reload()
+        return null
+      }
+    },
+    [user, reload],
+  )
+
+  const patchProject = useCallback(
+    async (id: string, patch: Partial<Project>) => {
+      setProjects((prev) => prev.map((p) => (p.id === id ? { ...p, ...patch } : p)))
+      try {
+        await updateProject(id, patch)
+      } catch (e: unknown) {
+        setError(e instanceof Error ? e.message : 'Could not save that')
+        reload()
+      }
+    },
+    [reload],
+  )
+
+  const removeProject = useCallback(
+    async (id: string) => {
+      setProjects((prev) => prev.filter((p) => p.id !== id))
+      try {
+        await archiveProject(id)
+      } catch (e: unknown) {
+        setError(e instanceof Error ? e.message : 'Could not archive that')
+        reload()
+      }
+    },
+    [reload],
+  )
+
+  const addArea = useCallback(
+    async (area: Parameters<typeof createArea>[1]) => {
+      if (!user) return null
+      try {
+        const created = await createArea(user.id, area)
+        setAreas((prev) => [...prev, created])
+        return created
+      } catch (e: unknown) {
+        setError(e instanceof Error ? e.message : 'Could not create that')
+        reload()
+        return null
+      }
+    },
+    [user, reload],
+  )
+
+  const patchArea = useCallback(
+    async (id: string, patch: Partial<Area>) => {
+      setAreas((prev) => prev.map((a) => (a.id === id ? { ...a, ...patch } : a)))
+      try {
+        await updateArea(id, patch)
+      } catch (e: unknown) {
+        setError(e instanceof Error ? e.message : 'Could not save that')
+        reload()
+      }
+    },
+    [reload],
+  )
+
   const saveSettings = useCallback(
     async (patch: Partial<Settings>) => {
       if (!user) return
@@ -424,6 +502,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
         settings, loading, error, reload,
         addTask, addSeries, patchSeries, removeSeries, makeRecurring,
         toggleTask, patchTask, removeTask,
+        addProject, patchProject, removeProject, addArea, patchArea,
         saveSettings, addBlock, patchBlock, removeBlock, planDay, clearPlan,
       }}
     >

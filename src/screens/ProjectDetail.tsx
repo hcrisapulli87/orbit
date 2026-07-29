@@ -1,18 +1,23 @@
 import { useState } from 'react'
 import type { FormEvent } from 'react'
-import { Link, useParams } from 'react-router-dom'
+import { Link, useNavigate, useParams } from 'react-router-dom'
 import { ScreenHeader } from '../components/ScreenHeader'
 import { TaskRow } from '../components/TaskRow'
 import { EmptyState } from '../components/ui/EmptyState'
 import { ProgressBar } from '../components/ui/ProgressBar'
+import { SegmentedControl } from '../components/ui/SegmentedControl'
 import { useAuth } from '../auth/AuthProvider'
 import { useData } from '../data/DataProvider'
 import { saveProjectAsTemplate } from '../data/templates'
+import type { ProjectKind } from '../data/types'
 
 export default function ProjectDetail() {
   const { id } = useParams()
+  const navigate = useNavigate()
   const { user } = useAuth()
-  const { projects, tasks, addTask, patchTask, reload } = useData()
+  const {
+    areas, projects, tasks, addTask, patchTask, patchProject, removeProject, reload,
+  } = useData()
   const [draft, setDraft] = useState('')
   const [saved, setSaved] = useState('')
 
@@ -130,6 +135,70 @@ export default function ProjectDetail() {
           </div>
         </div>
       )}
+
+      <div className="card">
+        <h2>Settings</h2>
+        <label className="row--between setting-row">
+          <span>Name</span>
+          <input
+            className="input input--time"
+            value={project.name}
+            onChange={(e) => void patchProject(project.id, { name: e.target.value })}
+            aria-label="Name"
+          />
+        </label>
+        <label className="row--between setting-row">
+          <span>Icon</span>
+          <input
+            className="input input--number"
+            value={project.icon}
+            onChange={(e) => void patchProject(project.id, { icon: e.target.value })}
+            aria-label="Icon"
+          />
+        </label>
+        <label className="row--between setting-row">
+          <span>Area</span>
+          <select
+            className="input input--time"
+            value={project.area_id ?? ''}
+            onChange={(e) => void patchProject(project.id, { area_id: e.target.value || null })}
+            aria-label="Area"
+          >
+            <option value="">None</option>
+            {areas.map((a) => (
+              <option key={a.id} value={a.id}>
+                {a.icon} {a.name}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label className="row--between setting-row">
+          <span>Kind</span>
+          <SegmentedControl
+            value={project.kind}
+            options={[
+              { value: 'list' as ProjectKind, label: 'List' },
+              { value: 'project' as ProjectKind, label: 'Project' },
+            ]}
+            onChange={(v) => void patchProject(project.id, { kind: v })}
+          />
+        </label>
+      </div>
+
+      <button
+        className="btn"
+        style={{ color: 'var(--danger-strong)' }}
+        onClick={async () => {
+          await removeProject(project.id)
+          navigate('/lists')
+        }}
+      >
+        Archive this {isList ? 'list' : 'project'}
+      </button>
+      <p className="hint" style={{ marginTop: 8 }}>
+        Archiving hides it without deleting anything. The {own.length} item
+        {own.length === 1 ? '' : 's'} in it stay exactly where they are.
+      </p>
     </main>
   )
 }
