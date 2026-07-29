@@ -172,6 +172,26 @@ export function nextOccurrenceAfter(rule: Rule, after: ISODate): ISODate | null 
 }
 
 /**
+ * The date of the nth occurrence, counting the anchor as the first.
+ *
+ * "Ends after 10 times" is how people describe a finite series, but until_on is
+ * a date, so the count has to be resolved to one at the point it's set. Storing
+ * the count instead would mean every reader had to expand the rule to know
+ * whether it had finished.
+ *
+ * Null when the rule can't reach n — an until_on already cuts it short, or it's
+ * an after-completion rule, whose dates don't exist until each one is ticked.
+ */
+export function nthOccurrenceDate(rule: Rule, n: number): ISODate | null {
+  if (n < 1 || rule.rule_type === 'after_completion') return null
+
+  // Generous enough for the slowest supported rule: n yearly occurrences at
+  // "every step years" is n * step years, plus a year of slack for clamping.
+  const horizon = addDays(rule.anchor_on, 366 * (n * rule.step + 1))
+  return occurrencesBetween(rule, rule.anchor_on, horizon)[n - 1] ?? null
+}
+
+/**
  * The next date for an interval-after-completion rule, measured from when the
  * job was actually done rather than from a fixed calendar date. Month intervals
  * clamp exactly like every other monthly rule, so six months from 31 August is

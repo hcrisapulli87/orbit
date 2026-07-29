@@ -739,6 +739,31 @@ body::before {
 /* Native date/time inputs carry their own AM/PM text and picker icon, so they
    need noticeably more room than a number field before they truncate. */
 .input--time { width: 158px; text-align: left; padding: 8px 10px; }
+.input--number { width: 78px; text-align: center; padding: 8px 10px; }
+
+/* ---- weekday picker: seven equal targets, so "every Mon/Wed/Fri" is three
+        taps rather than a sentence you have to phrase correctly ---- */
+.daypicker { display: flex; gap: 6px; margin-top: 12px; }
+.daypicker__day {
+  flex: 1; min-width: 0; min-height: var(--tap); padding: 0;
+  border: 1px solid var(--border); border-radius: var(--radius-sm);
+  background: var(--glass-2); color: var(--dim); font: inherit; font-weight: 600;
+  cursor: pointer;
+}
+.daypicker__day--on {
+  background: var(--accent); color: var(--accent-ink); border-color: var(--accent); font-weight: 800;
+}
+.daypicker__day:active { transform: scale(0.95); }
+
+/* ---- a whole habit row is the way into its editor ---- */
+.habitlink { text-decoration: none; color: inherit; }
+.habitlink:active { opacity: 0.6; }
+
+/* ---- live rule preview: a rule you can't check is a rule you don't trust ---- */
+.preview {
+  margin-top: 14px; padding: 12px 14px;
+  background: var(--inner); border-radius: var(--radius-sm);
+}
 
 /* ---- inbox triage ---- */
 .triage { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }

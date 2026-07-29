@@ -34,7 +34,7 @@ const DEFAULTS: Record<string, Row> = {
     estimate_min: null, due_time: null, step: 1, weekdays: [], month_day: null, nth: null,
     month: null, after_n: null, after_unit: null, until_on: null, lead_days: 0, active: true,
   },
-  task_blocks: { task_id: null, label: '', source: 'manual' },
+  task_blocks: { task_id: null, label: '', source: 'manual', all_day: false },
   task_templates: { icon: '🧩', area_id: null, creates: 'project', use_count: 0 },
   task_template_items: {
     notes: '', sort_order: 0, parent_index: null, offset_days: null, priority: 0,

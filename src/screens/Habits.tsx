@@ -1,4 +1,5 @@
 import { useMemo } from 'react'
+import { Link } from 'react-router-dom'
 import { ScreenHeader } from '../components/ScreenHeader'
 import { EmptyState } from '../components/ui/EmptyState'
 import { useData } from '../data/DataProvider'
@@ -61,17 +62,21 @@ export default function Habits() {
 
         return (
           <div className="card" key={s.id}>
-            <div className="row--between">
+            <Link className="row--between habitlink" to={`/series/${s.id}`}>
               <strong>{s.title}</strong>
-              {streak > 0 && <span className="streak">🔥 {streak}</span>}
-            </div>
+              <span className="row">
+                {streak > 0 && <span className="streak">🔥 {streak}</span>}
+                <span className="muted" aria-hidden="true">›</span>
+              </span>
+            </Link>
             <p className="muted" style={{ margin: '4px 0 10px', fontSize: '0.78rem' }}>
               {describeRule(ruleOf(s))} · best {bestStreak(scheduled, done)} ·{' '}
               {Math.round(rate * 100)}% kept
             </p>
 
-            {/* 30 days at a glance: filled = done, hollow = scheduled and
-                missed, faint = a day this habit never asked for. */}
+            {/* 30 days at a glance. The legend below is on screen rather than
+                only in this comment — a strip of dots nobody can read is
+                decoration, not information. */}
             <div className="dots" aria-hidden="true">
               {lastNDates(30, today).map((d) => {
                 const wasScheduled = scheduled.includes(d)
@@ -84,6 +89,10 @@ export default function Habits() {
                 )
               })}
             </div>
+            <p className="hint" style={{ margin: '8px 0 0' }}>
+              Last 30 days · <i className="dot dot--done" /> done ·{' '}
+              <i className="dot dot--missed" /> missed · <i className="dot" /> not scheduled
+            </p>
           </div>
         )
       })}
@@ -104,7 +113,7 @@ export default function Habits() {
             const next = nextOpen?.due_on ?? nextOccurrenceAfter(ruleOf(s), addDays(today, -1))
 
             return (
-              <div className="row--between setting-row" key={s.id}>
+              <Link className="row--between setting-row habitlink" to={`/series/${s.id}`} key={s.id}>
                 <span>
                   {s.kind === 'event' ? '🎂 ' : ''}
                   {s.title}
@@ -114,9 +123,9 @@ export default function Habits() {
                   </span>
                 </span>
                 <span className="muted" style={{ fontSize: '0.78rem', textAlign: 'right' }}>
-                  {next ? relativeLabel(next, today) : '—'}
+                  {next ? relativeLabel(next, today) : '—'} ›
                 </span>
-              </div>
+              </Link>
             )
           })}
         </div>

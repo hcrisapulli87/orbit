@@ -1,5 +1,5 @@
 import { supabase } from '../lib/supabase'
-import { planOccurrences } from '../domain/occurrences'
+import { planOccurrences, staleOccurrenceKeys } from '../domain/occurrences'
 import { todayISO } from '../domain/day'
 import type { Series, Task } from './types'
 import type { Rule } from '../domain/recurrence'
@@ -35,9 +35,110 @@ export async function createSeries(
   return data
 }
 
+export async function updateSeries(id: string, patch: Partial<Series>): Promise<void> {
+  const { error } = await supabase.from('task_series').update(patch).eq('id', id)
+  if (error) throw error
+}
+
 export async function deleteSeries(id: string): Promise<void> {
   // Occurrences cascade — deleting the rule deletes its future.
   const { error } = await supabase.from('task_series').delete().eq('id', id)
+  if (error) throw error
+}
+
+/** The occurrence fields that are copies of the series, and so must follow it. */
+const INHERITED = [
+  'title', 'notes', 'project_id', 'area_id', 'kind', 'priority', 'tags',
+  'estimate_min', 'due_time',
+] as const satisfies readonly (keyof Series & keyof Task)[]
+
+/**
+ * Push a series edit onto the occurrences it already created.
+ *
+ * An occurrence is a value-copy taken when it was materialised, not a live
+ * reference — that's what lets you move one Tuesday without touching the rule.
+ * The cost is that renaming a habit reaches none of the sixty rows already on
+ * the calendar, so the edit has to be carried across explicitly.
+ *
+ * Scoped to open occurrences due today or later. A completed occurrence is a
+ * record of something that actually happened under the old name, at the old
+ * time, and rewriting it would be falsifying the history the series/occurrence
+ * split exists to keep.
+ */
+export async function propagateToFuture(
+  seriesId: string,
+  patch: Partial<Series>,
+  today = todayISO(),
+): Promise<void> {
+  const inherited: Partial<Task> = {}
+  for (const field of INHERITED) {
+    if (field in patch) Object.assign(inherited, { [field]: patch[field] })
+  }
+  if (Object.keys(inherited).length === 0) return
+
+  const { error } = await supabase
+    .from('task_tasks')
+    .update(inherited)
+    .eq('series_id', seriesId)
+    .eq('status', 'open')
+    .gte('due_on', today)
+  if (error) throw error
+}
+
+/**
+ * Drop future occurrences a changed rule no longer schedules.
+ *
+ * Only open ones, and only after today: generation adds but never removes, so
+ * without this a daily habit switched to Mon/Wed/Fri keeps both schedules. The
+ * companion ensureOccurrences call then fills in the dates the new rule wants.
+ */
+export async function pruneStaleOccurrences(
+  series: Series,
+  tasks: Task[],
+  today = todayISO(),
+): Promise<number> {
+  const keys = tasks
+    .filter((t) => t.series_id === series.id && t.status === 'open' && t.occurrence_key)
+    .map((t) => t.occurrence_key as string)
+
+  const stale = staleOccurrenceKeys(ruleOf(series), keys, today, HORIZON_DAYS[series.kind])
+  if (stale.length === 0) return 0
+
+  const { error } = await supabase
+    .from('task_tasks')
+    .delete()
+    .eq('series_id', series.id)
+    .eq('status', 'open')
+    .in('occurrence_key', stale)
+  if (error) throw error
+  return stale.length
+}
+
+/**
+ * Adopt an existing one-off task as a series' first occurrence.
+ *
+ * Used when you make a task you're already looking at repeat. Creating the
+ * series and leaving the task alone would put two rows on its own due date;
+ * deleting the task and letting the series regenerate it would lose its notes,
+ * its subtasks and any block pointing at it. Claiming the row keeps everything
+ * and, because occurrence_key is the date, the unique (series_id,
+ * occurrence_key) constraint stops generation producing a twin.
+ */
+export async function adoptAsFirstOccurrence(
+  taskId: string,
+  series: Series,
+  dueOn: string,
+): Promise<void> {
+  const { error } = await supabase
+    .from('task_tasks')
+    .update({
+      series_id: series.id,
+      occurrence_key: dueOn,
+      due_on: dueOn,
+      kind: series.kind,
+      source: 'recurrence',
+    })
+    .eq('id', taskId)
   if (error) throw error
 }
 

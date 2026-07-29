@@ -59,3 +59,43 @@ export function planOccurrences(
     .filter((date) => !existing.has(date))
     .map((date) => ({ occurrence_key: date, due_on: date }))
 }
+
+/**
+ * Which existing occurrences a rule no longer asks for.
+ *
+ * The counterpart to planOccurrences, and the missing half of editing a series.
+ * Generation only ever adds — the upsert ignores duplicates — so switching a
+ * habit from daily to Mon/Wed/Fri would otherwise leave the union of both
+ * schedules on the calendar forever.
+ *
+ * Strictly forward-looking: nothing on or before `today` is ever returned, at
+ * any status. Today is already underway and yesterday is history, and a rule
+ * change is not a licence to rewrite what happened. The caller deletes only
+ * open rows on top of that, so a habit you have already ticked keeps its record
+ * and its streak.
+ *
+ * An after-completion rule has no schedule to compare against — its next date
+ * is unknowable until the current one is ticked — so it orphans nothing.
+ */
+export function staleOccurrenceKeys(
+  rule: Rule,
+  existingKeys: Iterable<string>,
+  today: ISODate,
+  horizonDays: number,
+): string[] {
+  if (rule.rule_type === 'after_completion') return []
+
+  const future = [...existingKeys].filter((key) => compareISO(key, today) > 0)
+  if (future.length === 0) return []
+
+  // Compare against the rule's whole reach, not just the horizon: a key beyond
+  // the horizon is one the rule generated when the horizon sat elsewhere, and
+  // dropping it for being far away would delete a perfectly good occurrence.
+  const furthest = future.reduce((a, b) => (compareISO(a, b) >= 0 ? a : b))
+  const to = compareISO(furthest, addDays(today, horizonDays)) > 0
+    ? furthest
+    : addDays(today, horizonDays)
+
+  const wanted = new Set(occurrencesBetween(rule, addDays(today, 1), to))
+  return future.filter((key) => !wanted.has(key))
+}

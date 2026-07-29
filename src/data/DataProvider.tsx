@@ -5,7 +5,10 @@ import { todayISO } from '../domain/day'
 import { fetchAreas } from './areas'
 import { fetchProjects } from './projects'
 import { createTask, deleteTask, fetchTasks, setTaskDone, updateTask } from './tasks'
-import { advanceAfterCompletion, createSeries, ensureOccurrences, fetchSeries, ruleOf } from './series'
+import {
+  adoptAsFirstOccurrence, advanceAfterCompletion, createSeries, deleteSeries, ensureOccurrences,
+  fetchSeries, propagateToFuture, pruneStaleOccurrences, ruleOf, updateSeries,
+} from './series'
 import { nextAfterCompletion } from '../domain/recurrence'
 import { DEFAULT_SETTINGS, fetchSettings, updateSettings } from './settings'
 import {
@@ -40,6 +43,9 @@ interface DataContextValue {
   clearPlan: (date: string) => Promise<void>
   addTask: (task: NewTask) => Promise<void>
   addSeries: (series: NewSeries) => Promise<void>
+  patchSeries: (id: string, patch: Partial<Series>) => Promise<void>
+  removeSeries: (id: string) => Promise<void>
+  makeRecurring: (task: Task, series: NewSeries) => Promise<Series | null>
   toggleTask: (task: Task) => Promise<void>
   patchTask: (id: string, patch: Partial<Task>) => Promise<void>
   removeTask: (id: string) => Promise<void>
@@ -172,6 +178,80 @@ export function DataProvider({ children }: { children: ReactNode }) {
       } catch (e: unknown) {
         setError(e instanceof Error ? e.message : 'Could not add that')
         reload()
+      }
+    },
+    [user, reload],
+  )
+
+  /**
+   * Edit a rule, and carry the edit onto everything it has already created.
+   *
+   * Three steps, in this order, because each depends on the last: write the
+   * rule; drop the future occurrences the new rule no longer wants; then top
+   * up to the horizon and push the inherited fields onto what's left. Past and
+   * completed occurrences are never touched — that separation is the reason a
+   * habit has a real history instead of one mutable due date.
+   */
+  const patchSeries = useCallback(
+    async (id: string, patch: Partial<Series>) => {
+      const before = series.find((s) => s.id === id)
+      if (!before) return
+      const after = { ...before, ...patch }
+      setSeries((prev) => prev.map((s) => (s.id === id ? after : s)))
+
+      try {
+        await updateSeries(id, patch)
+        await pruneStaleOccurrences(after, tasks)
+        // Prune first: ensureOccurrences reads the rows it must not duplicate,
+        // and a stale row still present would look like one already covered.
+        const fresh = await fetchTasks()
+        await ensureOccurrences([after], fresh)
+        await propagateToFuture(id, patch)
+      } catch (e: unknown) {
+        setError(e instanceof Error ? e.message : 'Could not save that')
+      }
+      reload()
+    },
+    [series, tasks, reload],
+  )
+
+  const removeSeries = useCallback(
+    async (id: string) => {
+      setSeries((prev) => prev.filter((s) => s.id !== id))
+      setTasks((prev) => prev.filter((t) => t.series_id !== id))
+      try {
+        // Occurrences cascade in the database — deleting the rule, past
+        // occurrences included, is what "stop this repeating" has to mean when
+        // the alternative is sixty orphan rows nothing can explain.
+        await deleteSeries(id)
+      } catch (e: unknown) {
+        setError(e instanceof Error ? e.message : 'Could not delete that')
+        reload()
+      }
+    },
+    [reload],
+  )
+
+  /**
+   * Make an existing one-off task repeat.
+   *
+   * The task becomes the series' first occurrence rather than being replaced by
+   * one, so its notes, subtasks and id survive and nothing appears twice on the
+   * date it already had.
+   */
+  const makeRecurring = useCallback(
+    async (task: Task, input: NewSeries): Promise<Series | null> => {
+      if (!user) return null
+      try {
+        const created = await createSeries(user.id, input)
+        await adoptAsFirstOccurrence(task.id, created, input.anchor_on)
+        await ensureOccurrences([created], [{ ...task, occurrence_key: input.anchor_on }])
+        reload()
+        return created
+      } catch (e: unknown) {
+        setError(e instanceof Error ? e.message : 'Could not make that repeat')
+        reload()
+        return null
       }
     },
     [user, reload],
@@ -342,7 +422,8 @@ export function DataProvider({ children }: { children: ReactNode }) {
       value={{
         areas, projects, tasks, series, blocks, templates, templateItems,
         settings, loading, error, reload,
-        addTask, addSeries, toggleTask, patchTask, removeTask,
+        addTask, addSeries, patchSeries, removeSeries, makeRecurring,
+        toggleTask, patchTask, removeTask,
         saveSettings, addBlock, patchBlock, removeBlock, planDay, clearPlan,
       }}
     >

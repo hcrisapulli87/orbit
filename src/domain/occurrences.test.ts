@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { planOccurrences } from './occurrences'
+import { planOccurrences, staleOccurrenceKeys } from './occurrences'
 import type { Rule } from './recurrence'
 
 const rule = (patch: Partial<Rule> & Pick<Rule, 'rule_type' | 'anchor_on'>): Rule => ({
@@ -100,5 +100,54 @@ describe('planOccurrences — after_completion', () => {
 
   it('adds nothing once one has been completed and its successor created', () => {
     expect(planOccurrences(service, ['2026-08-01', '2027-02-01'], TODAY, 60)).toEqual([])
+  })
+})
+
+describe('staleOccurrenceKeys', () => {
+  // The half that was missing from editing a series. Generation only ever
+  // adds, so without this a habit switched from daily to Mon/Wed/Fri keeps
+  // both schedules on the calendar forever.
+  const daily = rule({ rule_type: 'daily', anchor_on: '2026-07-01' })
+  const mwf = rule({ rule_type: 'weekly', weekdays: [1, 3, 5], anchor_on: '2026-07-01' })
+
+  const week = [
+    '2026-07-28', '2026-07-29', '2026-07-30', '2026-07-31', '2026-08-01', '2026-08-02',
+  ]
+
+  it('returns the dates the new rule no longer asks for', () => {
+    // Tue, Thu, Sat and Sun go; Wed and Fri stay.
+    expect(staleOccurrenceKeys(mwf, week, TODAY, 60)).toEqual([
+      '2026-07-28', '2026-07-30', '2026-08-01', '2026-08-02',
+    ])
+  })
+
+  it('returns nothing when the rule still wants everything', () => {
+    expect(staleOccurrenceKeys(daily, week, TODAY, 60)).toEqual([])
+  })
+
+  // A rule change is not a licence to rewrite what already happened.
+  it('never touches today or anything before it', () => {
+    const past = ['2026-07-01', '2026-07-20', TODAY]
+    expect(staleOccurrenceKeys(mwf, past, TODAY, 60)).toEqual([])
+  })
+
+  it('drops everything after a newly shortened end date', () => {
+    const ends = rule({ rule_type: 'daily', anchor_on: '2026-07-01', until_on: '2026-07-30' })
+    expect(staleOccurrenceKeys(ends, week, TODAY, 60)).toEqual([
+      '2026-07-31', '2026-08-01', '2026-08-02',
+    ])
+  })
+
+  // An occurrence past the horizon was generated when the horizon sat
+  // elsewhere. Dropping it for being far away would delete a good row.
+  it('keeps a valid occurrence that lies beyond the horizon', () => {
+    expect(staleOccurrenceKeys(daily, ['2026-12-25'], TODAY, 60)).toEqual([])
+  })
+
+  it('orphans nothing for an after-completion rule, which has no schedule', () => {
+    const service = rule({
+      rule_type: 'after_completion', after_n: 6, after_unit: 'month', anchor_on: '2026-08-01',
+    })
+    expect(staleOccurrenceKeys(service, ['2027-02-01'], TODAY, 60)).toEqual([])
   })
 })

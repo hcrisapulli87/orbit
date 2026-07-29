@@ -14,6 +14,7 @@ import Settings from './screens/Settings'
 import Appearance from './screens/Appearance'
 import ProjectDetail from './screens/ProjectDetail'
 import TaskDetail from './screens/TaskDetail'
+import SeriesDetail from './screens/SeriesDetail'
 import Templates from './screens/Templates'
 
 export default function App() {
@@ -43,6 +44,7 @@ export default function App() {
             <Route path="/appearance" element={<Appearance />} />
             <Route path="/project/:id" element={<ProjectDetail />} />
             <Route path="/task/:id" element={<TaskDetail />} />
+            <Route path="/series/:id" element={<SeriesDetail />} />
             <Route path="/templates" element={<Templates />} />
             <Route path="*" element={<Today />} />
           </Route>

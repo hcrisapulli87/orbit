@@ -15,7 +15,7 @@ import { clearStoredAppearance } from '../lib/appearance'
 import { DEMO_EMAIL, DEMO_OWNER_ID } from './identity'
 import type { Row } from './store'
 
-type Op = 'eq' | 'gte' | 'lte' | 'neq'
+type Op = 'eq' | 'gte' | 'lte' | 'neq' | 'in'
 interface Filter { column: string; op: Op; value: unknown }
 /** A parsed `.or('a.eq.x,b.gte.y')` — any one term matching is enough. */
 interface OrFilter { any: Filter[] }
@@ -34,6 +34,7 @@ function test(row: Row, f: Filter): boolean {
     // correctly as plain strings — the same property the domain layer relies on.
     case 'gte': return actual != null && String(actual) >= String(f.value)
     case 'lte': return actual != null && String(actual) <= String(f.value)
+    case 'in': return Array.isArray(f.value) && f.value.includes(actual)
   }
 }
 
@@ -111,6 +112,7 @@ class Builder<T = Row[]> implements PromiseLike<Result<T>> {
   neq(column: string, value: unknown) { return this.filter({ column, op: 'neq', value }) }
   gte(column: string, value: unknown) { return this.filter({ column, op: 'gte', value }) }
   lte(column: string, value: unknown) { return this.filter({ column, op: 'lte', value }) }
+  in(column: string, value: unknown[]) { return this.filter({ column, op: 'in', value }) }
   or(expression: string) { return this.filter(parseOr(expression)) }
 
   private filter(f: AnyFilter) {

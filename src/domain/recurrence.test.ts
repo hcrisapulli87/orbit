@@ -1,5 +1,7 @@
 import { describe, it, expect } from 'vitest'
-import { describeRule, nextAfterCompletion, nextOccurrenceAfter, occurrencesBetween } from './recurrence'
+import {
+  describeRule, nextAfterCompletion, nextOccurrenceAfter, nthOccurrenceDate, occurrencesBetween,
+} from './recurrence'
 import type { Rule } from './recurrence'
 
 /** A rule with everything defaulted, so each test states only what it means. */
@@ -279,5 +281,42 @@ describe('describeRule', () => {
         rule_type: 'after_completion', after_n: 6, after_unit: 'month', anchor_on: '2026-02-28',
       })),
     ).toBe('6 months after it was last done')
+  })
+})
+
+describe('nthOccurrenceDate', () => {
+  // "Ends after 10 times" is how people describe a finite series; until_on is
+  // a date. This is where the one becomes the other.
+  const tuesdays = rule({ rule_type: 'weekly', weekdays: [2], anchor_on: '2026-07-28' })
+
+  it('counts the anchor as the first', () => {
+    expect(nthOccurrenceDate(tuesdays, 1)).toBe('2026-07-28')
+  })
+
+  it('walks the rule forward for the nth', () => {
+    expect(nthOccurrenceDate(tuesdays, 4)).toBe('2026-08-18')
+  })
+
+  it('reaches a long way for a slow rule', () => {
+    const yearly = rule({ rule_type: 'yearly', anchor_on: '2026-03-01' })
+    expect(nthOccurrenceDate(yearly, 5)).toBe('2030-03-01')
+  })
+
+  it('returns null when an existing end date cuts the rule short first', () => {
+    const capped = rule({
+      rule_type: 'weekly', weekdays: [2], anchor_on: '2026-07-28', until_on: '2026-08-10',
+    })
+    expect(nthOccurrenceDate(capped, 4)).toBeNull()
+  })
+
+  it('returns null for an after-completion rule, whose dates do not exist yet', () => {
+    const service = rule({
+      rule_type: 'after_completion', after_n: 6, after_unit: 'month', anchor_on: '2026-08-01',
+    })
+    expect(nthOccurrenceDate(service, 2)).toBeNull()
+  })
+
+  it('returns null for a nonsense count', () => {
+    expect(nthOccurrenceDate(tuesdays, 0)).toBeNull()
   })
 })
