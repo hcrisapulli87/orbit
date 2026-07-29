@@ -114,14 +114,31 @@ describe('buildToday', () => {
   const plan = (tasks: Plannable[], capacityMin = 180) =>
     buildToday(tasks, { today: TODAY, capacityMin })
 
-  it('puts overdue and due-today work in must, whatever the capacity', () => {
+  it('puts overdue and today’s flagged work in must, whatever the capacity', () => {
     const late = task({ due_on: '2026-07-20', estimate_min: 120 })
-    const now = task({ due_on: TODAY, estimate_min: 120 })
-    const p = plan([late, now], 60)
-    expect(ids(p.must)).toEqual([late.id, now.id])
+    const flagged = task({ due_on: TODAY, priority: 3, estimate_min: 120 })
+    const p = plan([late, flagged], 60)
+    expect(ids(p.must)).toEqual([late.id, flagged.id])
   })
 
-  it('reports the shortfall rather than silently dropping commitments', () => {
+  it('puts the rest of today in should', () => {
+    const flagged = task({ due_on: TODAY, priority: 2 })
+    const plain = task({ due_on: TODAY, priority: 1 })
+    const p = plan([flagged, plain])
+    expect(ids(p.must)).toEqual([flagged.id])
+    expect(ids(p.should)).toEqual([plain.id])
+  })
+
+  // Priority decides Must vs Should only for work due today. Something already
+  // missed is a must whatever you flagged it.
+  it('keeps an overdue task in must however low its priority', () => {
+    const late = task({ due_on: '2026-07-20', priority: 0 })
+    const p = plan([late])
+    expect(ids(p.must)).toEqual([late.id])
+    expect(p.should).toEqual([])
+  })
+
+  it('reports the shortfall rather than silently dropping anything', () => {
     const p = plan([task({ due_on: TODAY, estimate_min: 120 })], 80)
     expect(p.plannedMin).toBe(120)
     expect(p.capacityMin).toBe(80)
@@ -132,14 +149,34 @@ describe('buildToday', () => {
     expect(plan([task({ due_on: TODAY, estimate_min: 30 })], 180).overCapacity).toBe(0)
   })
 
-  it('fills the remaining capacity with should, then demotes the rest to if-time', () => {
-    const commitment = task({ due_on: TODAY, estimate_min: 60 })
-    const big = task({ priority: 3, estimate_min: 90 })
-    const small = task({ priority: 2, estimate_min: 60 })
-    const p = plan([commitment, big, small], 180)
-    expect(ids(p.must)).toEqual([commitment.id])
-    expect(ids(p.should)).toEqual([big.id])
-    expect(ids(p.ifTime)).toEqual([small.id])
+  it('counts both must and should towards the day', () => {
+    const flagged = task({ due_on: TODAY, priority: 3, estimate_min: 60 })
+    const plain = task({ due_on: TODAY, priority: 0, estimate_min: 30 })
+    expect(plan([flagged, plain]).plannedMin).toBe(90)
+  })
+
+  // The whole point of the four sections: an undated someday task and a task
+  // due on Friday are different things and never share a bucket.
+  it('sends a future-dated task to coming up and an undated one to if-time', () => {
+    const friday = task({ due_on: '2026-07-31' })
+    const someday = task()
+    const p = plan([friday, someday])
+    expect(ids(p.comingUp)).toEqual([friday.id])
+    expect(ids(p.ifTime)).toEqual([someday.id])
+    expect(p.should).toEqual([])
+  })
+
+  // Capacity used to decide this split, which meant a quiet day promoted the
+  // backlog into Should and a busy one demoted Friday's work into If-there's-
+  // time. Neither is a thing the section names claim.
+  it('never moves undated work out of if-time, however empty the day', () => {
+    const someday = task({ estimate_min: 15 })
+    expect(ids(plan([someday], 600).ifTime)).toEqual([someday.id])
+  })
+
+  it('never moves a dated task out of coming up, however full the day', () => {
+    const friday = task({ due_on: '2026-07-31', estimate_min: 240 })
+    expect(ids(plan([friday], 30).comingUp)).toEqual([friday.id])
   })
 
   // A daily habit materialises sixty days of occurrences up front. Without a
@@ -148,13 +185,7 @@ describe('buildToday', () => {
   it('keeps work due beyond the horizon off today altogether', () => {
     const soon = task({ due_on: '2026-08-01' })
     const far = task({ due_on: '2026-09-15' })
-    const p = plan([soon, far])
-    expect(ids([...p.should, ...p.ifTime])).toEqual([soon.id])
-  })
-
-  it('still shows undated work, which has no horizon to be beyond', () => {
-    const someday = task()
-    expect(ids(plan([someday]).should)).toEqual([someday.id])
+    expect(ids(plan([soon, far]).comingUp)).toEqual([soon.id])
   })
 
   it('never drops a commitment for being far away — it cannot be', () => {
@@ -166,47 +197,53 @@ describe('buildToday', () => {
   // asks for more warning than the default horizon gets it.
   it('respects a lead time longer than the horizon', () => {
     const renewal = task({ due_on: '2026-08-20', lead_days: 30 })
-    expect(ids(plan([renewal]).should)).toEqual([renewal.id])
+    expect(ids(plan([renewal]).comingUp)).toEqual([renewal.id])
   })
 
   it('excludes deferred tasks entirely', () => {
     const later = task({ due_on: TODAY, starts_on: '2026-08-01' })
     const p = plan([later])
-    expect([...p.must, ...p.should, ...p.ifTime]).toEqual([])
+    expect([...p.must, ...p.should, ...p.comingUp, ...p.ifTime]).toEqual([])
   })
 
   it('excludes anything already done', () => {
     const p = plan([task({ due_on: TODAY, status: 'done' }), task({ status: 'dropped' })])
-    expect([...p.must, ...p.should, ...p.ifTime]).toEqual([])
+    expect([...p.must, ...p.should, ...p.comingUp, ...p.ifTime]).toEqual([])
   })
 
   it('keeps events out of the work lists and out of the capacity sum', () => {
     const birthday = task({ kind: 'event', due_on: TODAY })
     const job = task({ due_on: TODAY, estimate_min: 30 })
     const p = plan([birthday, job])
-    expect(ids(p.events)).toEqual([birthday.id])
-    expect(ids(p.must)).toEqual([job.id])
+    expect(ids(p.comingUp)).toEqual([birthday.id])
+    expect(ids(p.should)).toEqual([job.id])
     expect(p.plannedMin).toBe(30)
   })
 
   it('shows an upcoming event once it is inside its lead time', () => {
     const soon = task({ kind: 'event', due_on: '2026-08-01', lead_days: 7 })
     const distant = task({ kind: 'event', due_on: '2026-12-01', lead_days: 7 })
-    expect(ids(plan([soon, distant]).events)).toEqual([soon.id])
+    expect(ids(plan([soon, distant]).comingUp)).toEqual([soon.id])
+  })
+
+  it('orders coming up by date, tasks and events together', () => {
+    const friday = task({ due_on: '2026-07-31', priority: 3 })
+    const birthday = task({ kind: 'event', due_on: '2026-07-29', lead_days: 7 })
+    expect(ids(plan([friday, birthday]).comingUp)).toEqual([birthday.id, friday.id])
   })
 
   it('separates overdue so the screen can shout about it', () => {
     const late = task({ due_on: '2026-07-20' })
-    const now = task({ due_on: TODAY })
+    const now = task({ due_on: TODAY, priority: 3 })
     const p = plan([late, now])
     expect(ids(p.overdue)).toEqual([late.id])
     expect(ids(p.must)).toContain(late.id)
   })
 
-  it('sorts every list by score, worst-overdue first', () => {
+  it('sorts the work lists by score, worst-overdue first', () => {
     const a = task({ due_on: '2026-07-25' })
     const b = task({ due_on: '2026-07-20' })
-    const c = task({ due_on: TODAY })
+    const c = task({ due_on: TODAY, priority: 3 })
     expect(ids(plan([a, b, c]).must)).toEqual([b.id, a.id, c.id])
   })
 })
@@ -313,7 +350,7 @@ describe('withinHorizon', () => {
       task({ id: `d${i}`, kind: 'habit', due_on: addDaysISO(TODAY, i + 1) }),
     )
     const plan = buildToday(daily, { today: TODAY, capacityMin: 180 })
-    const shown = [...plan.must, ...plan.should, ...plan.ifTime]
+    const shown = [...plan.must, ...plan.should, ...plan.comingUp, ...plan.ifTime]
     expect(shown).toHaveLength(TODAY_HORIZON_DAYS)
   })
 })

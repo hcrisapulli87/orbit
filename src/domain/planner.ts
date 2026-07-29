@@ -26,19 +26,27 @@ export interface Plannable {
 export interface TodayPlan<T extends Plannable = Plannable> {
   /** Already missed. Broken out so the screen can lead with it. */
   overdue: T[]
-  /** Commitments: overdue or due today. Included regardless of capacity. */
+  /** Overdue, plus today's flagged work. The day's non-negotiables. */
   must: T[]
-  /** Fits in what's left of the day. */
+  /** The rest of what's due today. */
   should: T[]
-  /** Real work that simply doesn't fit today. */
+  /** Dated after today and near enough to be worth knowing about. */
+  comingUp: T[]
+  /** Open work with no date at all. Available if the day allows. */
   ifTime: T[]
-  /** Dates to be aware of. No checkbox, no time cost. */
-  events: T[]
+  /** Today's total, must + should. Events cost nothing. */
   plannedMin: number
   capacityMin: number
-  /** Minutes by which the commitments exceed the day. 0 when it fits. */
+  /** Minutes by which today's work exceeds the day. 0 when it fits. */
   overCapacity: number
 }
+
+/**
+ * The priority at which today's work stops being "also due" and becomes a
+ * non-negotiable. Med and High are things you flagged on the way in; None and
+ * Low are the rest of the day.
+ */
+export const MUST_PRIORITY = 2
 
 // Scoring weights. Tiered rather than a smooth curve so the ordering is
 // explainable: "overdue, then today, then tomorrow" is what a person expects.
@@ -189,11 +197,19 @@ function firstGap(taken: Interval[], dayStart: number, dayEnd: number, need: num
 /**
  * Build the day.
  *
- * Commitments (overdue or due today) always land in `must`, even when they
- * overflow the day — telling you it's forty minutes more than you have is the
- * useful output, and silently truncating the list is how a planner starts
- * lying. Whatever capacity is left is filled greedily in score order; the rest
- * drops to `ifTime`.
+ * The four sections answer four different questions, and each one is decided by
+ * the task's date rather than by how much room is left:
+ *
+ *   Must            overdue, plus today's flagged work
+ *   Should          the rest of what's due today
+ *   Coming up       dated after today, inside the horizon
+ *   If there's time no date at all
+ *
+ * An earlier version split Should and If-there's-time by remaining capacity,
+ * which put a task due on Friday and a someday task in the same bucket and made
+ * the two sections mean nothing you could act on. Capacity is still reported —
+ * it just says how big today is instead of deciding what today contains, so an
+ * over-committed day says by how much rather than quietly demoting something.
  */
 export function buildToday<T extends Plannable>(
   tasks: T[],
@@ -203,51 +219,42 @@ export function buildToday<T extends Plannable>(
 
   const live = tasks.filter((t) => t.status === 'open' && !isDeferred(t, today))
   const byScore = (a: T, b: T) => scoreTask(b, today) - scoreTask(a, today)
+  const byDate = (a: T, b: T) => compareISO(a.due_on!, b.due_on!)
 
-  // Events are dates to know about, not work: no checkbox, no minutes. They
-  // appear once inside their lead time and disappear once they've passed.
-  const events = live
-    .filter((t) => {
+  const isOverdue = (t: T) => t.due_on !== null && compareISO(t.due_on, today) < 0
+  const isToday = (t: T) => t.due_on !== null && compareISO(t.due_on, today) === 0
+
+  // Today is a day, not a backlog. Events are dates to know about, not work:
+  // no checkbox, no minutes, and they never enter the work lists.
+  const work = live.filter((t) => t.kind !== 'event' && withinHorizon(t, today)).sort(byScore)
+
+  const must = work.filter((t) => isOverdue(t) || (isToday(t) && t.priority >= MUST_PRIORITY))
+  const overdue = must.filter(isOverdue)
+  const should = work.filter((t) => isToday(t) && t.priority < MUST_PRIORITY)
+  const ifTime = work.filter((t) => t.due_on === null)
+
+  // A lookahead reads by date, not by urgency. Events join it on their own
+  // terms: a birthday appears inside the lead time its series asked for, and
+  // disappears once the day has passed.
+  const comingUp = [
+    ...work.filter((t) => t.due_on !== null && compareISO(t.due_on, today) > 0),
+    ...live.filter((t) => {
       if (t.kind !== 'event' || t.due_on === null) return false
       const until = daysBetween(today, t.due_on)
       return until >= 0 && until <= (t.lead_days ?? 0)
-    })
-    .sort((a, b) => compareISO(a.due_on!, b.due_on!))
+    }),
+  ].sort(byDate)
 
-  const isCommitment = (t: T) => t.due_on !== null && compareISO(t.due_on, today) <= 0
-
-  // Today is a day, not a backlog.
-  const work = live.filter((t) => t.kind !== 'event' && withinHorizon(t, today)).sort(byScore)
-
-  const must = work.filter(isCommitment)
-  const overdue = must.filter((t) => compareISO(t.due_on!, today) < 0)
-
-  const committedMin = must.reduce((sum, t) => sum + defaultEstimateFor(t), 0)
-  let remaining = capacityMin - committedMin
-
-  const should: T[] = []
-  const ifTime: T[] = []
-  for (const t of work) {
-    if (isCommitment(t)) continue
-    const cost = defaultEstimateFor(t)
-    if (cost <= remaining) {
-      should.push(t)
-      remaining -= cost
-    } else {
-      ifTime.push(t)
-    }
-  }
-
-  const plannedMin = committedMin + should.reduce((sum, t) => sum + defaultEstimateFor(t), 0)
+  const plannedMin = [...must, ...should].reduce((sum, t) => sum + defaultEstimateFor(t), 0)
 
   return {
     overdue,
     must,
     should,
+    comingUp,
     ifTime,
-    events,
     plannedMin,
     capacityMin,
-    overCapacity: Math.max(0, committedMin - capacityMin),
+    overCapacity: Math.max(0, plannedMin - capacityMin),
   }
 }

@@ -54,11 +54,11 @@ export default function TodaySpine({
     }]
   })
 
-  const planned = [...plan.must, ...plan.should, ...plan.ifTime]
+  // The rail is today. Must and Should are today by construction now, so the
+  // date filter below is belt and braces rather than the load-bearing part it
+  // used to be when the plan reached days ahead.
+  const planned = [...plan.must, ...plan.should]
 
-  // Today's timed work only. The plan reaches days ahead — a 7am habit every
-  // morning this week is five separate rows in `ifTime` — and putting all of
-  // them on one day's clock would stack them all at seven in the morning.
   const onClock = [...blockEntries, ...timedEntriesFor(planned.filter((t) => t.due_on === today))]
     .sort((a, b) => a.startMin - b.startMin)
 
@@ -153,10 +153,21 @@ export default function TodaySpine({
         </div>
       )}
 
-      {plan.events.length > 0 && (
+      {plan.comingUp.length > 0 && (
         <div className="card">
           <h2>Coming up</h2>
-          {plan.events.map((t) => (
+          <p className="hint">The next seven days, and the dates worth knowing about.</p>
+          {plan.comingUp.map((t) => (
+            <TaskRow key={t.id} task={t} />
+          ))}
+        </div>
+      )}
+
+      {plan.ifTime.length > 0 && (
+        <div className="card">
+          <h2>If there's time · {plan.ifTime.length}</h2>
+          <p className="hint">Open work with no date on it.</p>
+          {plan.ifTime.map((t) => (
             <TaskRow key={t.id} task={t} />
           ))}
         </div>
@@ -171,13 +182,16 @@ export default function TodaySpine({
         </div>
       )}
 
-      {onClock.length === 0 && unscheduled.length === 0 && plan.events.length === 0 && (
-        <EmptyState
-          icon="today"
-          title="Nothing on the rail"
-          hint="Capture something and it will show up here."
-        />
-      )}
+      {onClock.length === 0 &&
+        unscheduled.length === 0 &&
+        plan.comingUp.length === 0 &&
+        plan.ifTime.length === 0 && (
+          <EmptyState
+            icon="today"
+            title="Nothing on the rail"
+            hint="Capture something and it will show up here."
+          />
+        )}
     </main>
   )
 }

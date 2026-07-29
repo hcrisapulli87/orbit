@@ -36,7 +36,7 @@ export default function Today() {
 
   const doneToday = tasks.filter((t) => t.status === 'done' && t.completed_on === today)
   const nothing =
-    plan.must.length + plan.should.length + plan.ifTime.length + plan.events.length === 0
+    plan.must.length + plan.should.length + plan.comingUp.length + plan.ifTime.length === 0
 
   // Three of the four themes restyle this list; Transit is a different view of
   // the same plan, so it gets its own component rather than a pile of CSS.
@@ -113,18 +113,29 @@ export default function Today() {
         <EmptyState icon="today" title="Nothing needs you today" hint="Capture something and it will show up here." />
       )}
 
-      <Section title="Must" tasks={plan.must} />
-      <Section title="Should" tasks={plan.should} collapsed={collapse} />
-      <Section title="If there's time" tasks={plan.ifTime} collapsed={collapse} />
-
-      {plan.events.length > 0 && (
-        <div className="card">
-          <h2>Coming up</h2>
-          {plan.events.map((t) => (
-            <TaskRow key={t.id} task={t} />
-          ))}
-        </div>
-      )}
+      {/* Four sections, four different questions — each decided by the task's
+          date, not by how much room is left in the day. The hints are on
+          screen because a section whose rule you have to guess is a section
+          you stop trusting. */}
+      <Section title="Must" hint="Overdue, and today's flagged work." tasks={plan.must} />
+      <Section
+        title="Should"
+        hint="Also due today."
+        tasks={plan.should}
+        collapsed={collapse}
+      />
+      <Section
+        title="Coming up"
+        hint="The next seven days, and the dates worth knowing about."
+        tasks={plan.comingUp}
+        collapsed={collapse}
+      />
+      <Section
+        title="If there's time"
+        hint="Open work with no date on it."
+        tasks={plan.ifTime}
+        collapsed={collapse}
+      />
 
       {doneToday.length > 0 && (
         <div className="card">
@@ -146,10 +157,12 @@ export default function Today() {
  */
 function Section({
   title,
+  hint,
   tasks,
   collapsed = false,
 }: {
   title: string
+  hint: string
   tasks: Task[]
   collapsed?: boolean
 }) {
@@ -163,6 +176,7 @@ function Section({
     return (
       <div className="card">
         <h2>{title}</h2>
+        <p className="hint">{hint}</p>
         {tasks.map((t) => (
           <TaskRow key={t.id} task={t} />
         ))}
@@ -178,7 +192,14 @@ function Section({
         </span>
         <Icon name="plus" small />
       </button>
-      {open && tasks.map((t) => <TaskRow key={t.id} task={t} />)}
+      {open && (
+        <>
+          <p className="hint">{hint}</p>
+          {tasks.map((t) => (
+            <TaskRow key={t.id} task={t} />
+          ))}
+        </>
+      )}
     </div>
   )
 }

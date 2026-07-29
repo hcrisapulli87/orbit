@@ -459,6 +459,10 @@ body::before {
   margin: 0 0 12px; font-size: 0.72rem; text-transform: uppercase;
   letter-spacing: 0.1em; color: var(--dim); font-weight: 700;
 }
+/* A one-line explanation of what a section actually contains. Pulled up under
+   its heading so it reads as part of the label, not as content. */
+.hint { margin: 0 0 12px; font-size: 0.78rem; color: var(--dim); line-height: 1.45; }
+.card h2 + .hint { margin-top: -8px; }
 
 .input, select.input, textarea.input {
   width: 100%; padding: 13px 14px; border: 1px solid var(--border); border-radius: var(--radius-sm);
