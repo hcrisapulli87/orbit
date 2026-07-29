@@ -200,6 +200,12 @@ function taskRows(today: string): Row[] {
 
 interface SeriesSpec extends Row { id: string; title: string }
 
+/** Same day and month, N years earlier — an anniversary's anchor. */
+function yearsBack(iso: string, years: number): string {
+  const [y, m, d] = iso.split('-').map(Number)
+  return isoOf(y - years, m, d)
+}
+
 function seriesRows(today: string): Row[] {
   const specs: SeriesSpec[] = [
     {
@@ -236,6 +242,13 @@ function seriesRows(today: string): Row[] {
       id: 'ser-service', title: 'Car service', kind: 'task', area_id: 'area-car',
       rule_type: 'after_completion', step: 1, after_n: 6, after_unit: 'month',
       anchor_on: addDays(today, 23), estimate_min: 30,
+    },
+    // Deliberately inside its own lead time, so the demo actually shows the
+    // "buy a present" state rather than only the far-off one above.
+    {
+      id: 'ser-bday-rowan', title: 'Rowan’s birthday', kind: 'event', area_id: 'area-dates',
+      rule_type: 'yearly', step: 1,
+      anchor_on: yearsBack(addDays(today, 5), 3), lead_days: 14,
     },
   ]
 
@@ -338,14 +351,19 @@ function backfill(series: Row[], today: string): Row[] {
 }
 
 function blockRows(today: string): Row[] {
-  const rows: [string, string, string, string][] = [
-    [today, '09:00', '10:30', 'Deep work'],
-    [today, '12:30', '13:00', 'Lunch'],
-    [today, '18:00', '19:00', 'Dinner + bath time'],
-    [addDays(today, 1), '09:30', '10:00', 'Site call'],
-    [addDays(today, 1), '13:00', '14:30', 'Deep work'],
+  // A titled block with no task behind it is an ordinary calendar entry —
+  // "Dentist", "Deep work", a day away. Seeded here so the demo shows the
+  // calendar being used as a calendar rather than only as a task planner.
+  const rows: [string, string, string, string, boolean][] = [
+    [today, '09:00', '10:30', 'Deep work', false],
+    [today, '12:30', '13:00', 'Lunch', false],
+    [today, '18:00', '19:00', 'Dinner + bath time', false],
+    [addDays(today, 1), '09:30', '10:00', 'Site call', false],
+    [addDays(today, 1), '13:00', '14:30', 'Deep work', false],
+    [addDays(today, 2), '14:15', '15:15', 'Dentist', false],
+    [addDays(today, 4), '00:00', '23:59', 'Rowan & Tess visiting', true],
   ]
-  return rows.map(([on_date, start_time, end_time, label], i) => ({
+  return rows.map(([on_date, start_time, end_time, label, all_day], i) => ({
     id: `block-${i}`,
     owner_id: owner,
     on_date,
@@ -354,7 +372,7 @@ function blockRows(today: string): Row[] {
     task_id: null,
     label,
     source: 'manual',
-    all_day: false,
+    all_day,
     created_at: ago(1),
   }))
 }

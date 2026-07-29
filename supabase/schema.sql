@@ -283,7 +283,12 @@ select
   t.completed_on,
   coalesce(s.lead_days, 0) as lead_days,
   p.name                   as project_name,
-  a.name                   as area_name
+  a.name                   as area_name,
+  -- Appended in v9, at the end because `create or replace view` may add
+  -- columns but never reorder them. The notify function reads events through
+  -- this view — it's the one place lead_days and the task are already joined —
+  -- and has to know whose device to push to.
+  t.owner_id
 from public.task_tasks t
 left join public.task_series   s on s.id = t.series_id
 left join public.task_projects p on p.id = t.project_id

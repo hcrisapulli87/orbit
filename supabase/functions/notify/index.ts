@@ -17,7 +17,7 @@ import webpush from 'npm:web-push@3'
 
 const TIMEZONE = 'Australia/Melbourne'
 
-type NotificationKind = 'overdue' | 'due_today' | 'due_soon' | 'block_start'
+type NotificationKind = 'overdue' | 'due_today' | 'due_soon' | 'block_start' | 'event_lead'
 
 interface Subscription {
   id: string
@@ -33,6 +33,12 @@ interface Candidate {
   kind: NotificationKind
   title: string
   body: string
+  /**
+   * The dedupe key's date half. Today for everything that fires on the day it
+   * is about; the event's own date for a lead-time reminder, which would
+   * otherwise repeat every morning of its lead window.
+   */
+  sentFor: string
 }
 
 /** Local calendar day and minutes-since-midnight in Melbourne, not UTC. */
@@ -56,6 +62,21 @@ const toMinutes = (time: string | null): number | null => {
   return Number.isFinite(h) && Number.isFinite(m) ? h * 60 + m : null
 }
 
+// Two days of ISO-string arithmetic, duplicated from src/domain/day.ts rather
+// than imported: an Edge Function can't reach into the app bundle, and the
+// alternative — a shared package for four lines — is more moving parts than
+// this earns. UTC throughout, so no DST transition can shift a date.
+const addDaysISO = (iso: string, days: number): string => {
+  const d = new Date(`${iso}T00:00:00Z`)
+  d.setUTCDate(d.getUTCDate() + days)
+  return d.toISOString().slice(0, 10)
+}
+
+const daysBetweenISO = (from: string, to: string): number =>
+  Math.round(
+    (Date.parse(`${to}T00:00:00Z`) - Date.parse(`${from}T00:00:00Z`)) / 86_400_000,
+  )
+
 Deno.serve(async (req) => {
   const secret = Deno.env.get('NOTIFY_SECRET')
   if (secret && req.headers.get('x-orbit-secret') !== secret) {
@@ -75,13 +96,27 @@ Deno.serve(async (req) => {
 
   const { day, minutes } = localNow()
 
-  const [{ data: settings }, { data: tasks }, { data: blocks }, { data: subs }] = await Promise.all([
+  const [
+    { data: settings }, { data: tasks }, { data: events }, { data: blocks }, { data: subs },
+  ] = await Promise.all([
     supabase.from('task_settings').select('owner_id, push_lead_min'),
     supabase
       .from('task_tasks')
       .select('id, owner_id, title, due_on, due_time, kind, status')
       .eq('status', 'open')
       .lte('due_on', day),
+    // Important dates are read through the digest view rather than the table,
+    // because lead_days lives on the series and the view is the one place that
+    // already joins the two. Ninety days is comfortably past the longest lead
+    // anyone would set, and far short of the four hundred an event is
+    // materialised for.
+    supabase
+      .from('task_digest_v')
+      .select('id, kind, status, due_on, title, lead_days')
+      .eq('kind', 'event')
+      .eq('status', 'open')
+      .gte('due_on', day)
+      .lte('due_on', addDaysISO(day, 90)),
     supabase
       .from('task_blocks')
       .select('id, owner_id, start_time, label, task_id')
@@ -105,6 +140,7 @@ Deno.serve(async (req) => {
         ownerId: task.owner_id,
         taskId: task.id,
         kind: 'overdue',
+        sentFor: day,
         title: 'Overdue',
         body: task.title,
       })
@@ -119,6 +155,7 @@ Deno.serve(async (req) => {
           ownerId: task.owner_id,
           taskId: task.id,
           kind: 'due_today',
+        sentFor: day,
           title: 'Due today',
           body: task.title,
         })
@@ -132,8 +169,33 @@ Deno.serve(async (req) => {
         ownerId: task.owner_id,
         taskId: task.id,
         kind: 'due_soon',
+        sentFor: day,
         title: 'Coming up',
         body: task.title,
+      })
+    }
+  }
+
+  /**
+   * Important dates, on the one day they're actually useful.
+   *
+   * Events still never nag about being due — a birthday isn't a job and has no
+   * checkbox. What's worth a push is the day the lead time opens, while there
+   * is still time to buy something. One notification per event per year, which
+   * falls out of keying the send-once record on the event's date rather than
+   * on today's.
+   */
+  if (minutes >= 8 * 60) {
+    for (const event of events ?? []) {
+      const until = daysBetweenISO(day, event.due_on)
+      if (until !== (event.lead_days ?? 0)) continue
+      candidates.push({
+        ownerId: event.owner_id,
+        taskId: event.id,
+        kind: 'event_lead',
+        sentFor: event.due_on,
+        title: until === 0 ? 'Today' : `In ${until} day${until === 1 ? '' : 's'}`,
+        body: until === 0 ? event.title : `${event.title} — time to sort a gift`,
       })
     }
   }
@@ -147,6 +209,7 @@ Deno.serve(async (req) => {
         ownerId: block.owner_id,
         taskId: block.task_id,
         kind: 'block_start',
+        sentFor: day,
         title: 'Starting soon',
         body: block.label || 'Blocked time',
       })
@@ -157,14 +220,23 @@ Deno.serve(async (req) => {
     return Response.json({ day, minutes, sent: 0, considered: 0 })
   }
 
-  // Send-once: anything already recorded for this task/kind/day is skipped.
+  // Send-once, keyed on task + kind + the date the notification is *about*.
+  // For everything that fires on the day, that date is today. A lead-time
+  // reminder is about the event's own date, so the window has to reach forward
+  // rather than being pinned to today — otherwise a birthday a week out would
+  // be announced again every morning until it arrived.
   const { data: alreadySent } = await supabase
     .from('task_notifications')
-    .select('task_id, kind')
-    .eq('sent_for', day)
+    .select('task_id, kind, sent_for')
+    .gte('sent_for', day)
 
-  const sentKey = new Set((alreadySent ?? []).map((n) => `${n.task_id}:${n.kind}`))
-  const pending = candidates.filter((c) => !sentKey.has(`${c.taskId}:${c.kind}`))
+  const keyOf = (taskId: string, kind: string, sentFor: string) => `${taskId}:${kind}:${sentFor}`
+  const sentKey = new Set(
+    (alreadySent ?? []).map((n) => keyOf(n.task_id, n.kind, n.sent_for)),
+  )
+  const pending = candidates.filter(
+    (c) => !sentKey.has(keyOf(c.taskId, c.kind, c.sentFor)),
+  )
 
   let sent = 0
   const dead: string[] = []
@@ -204,7 +276,7 @@ Deno.serve(async (req) => {
         owner_id: candidate.ownerId,
         task_id: candidate.taskId,
         kind: candidate.kind,
-        sent_for: day,
+        sent_for: candidate.sentFor,
       })
       sent++
     }
