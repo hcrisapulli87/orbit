@@ -119,6 +119,9 @@ export interface Block {
   task_id: string | null
   label: string
   source: 'manual' | 'planner'
+  /** An all-day entry. Times are still stored, so the grid has something to
+      lay out if the flag is ever turned off again. */
+  all_day: boolean
   created_at: string
 }
 

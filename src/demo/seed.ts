@@ -354,6 +354,7 @@ function blockRows(today: string): Row[] {
     task_id: null,
     label,
     source: 'manual',
+    all_day: false,
     created_at: ago(1),
   }))
 }

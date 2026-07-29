@@ -688,6 +688,18 @@ body::before {
 }
 .listrow__body { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 6px; }
 
+/* ---- blocked-out rows: a whole row is the tap target, so editing a block
+        never depends on hitting a small button ---- */
+.blockrow {
+  width: 100%; display: flex; align-items: baseline; gap: 10px; padding: 10px 0;
+  border: 0; border-bottom: 1px solid var(--hairline); background: none;
+  color: var(--ink); font: inherit; text-align: left; cursor: pointer;
+}
+.blockrow:last-of-type { border-bottom: 0; }
+.blockrow:active { opacity: 0.6; }
+.blockrow__when { font-variant-numeric: tabular-nums; font-weight: 600; flex-shrink: 0; }
+.blockrow__what { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
 /* ---- bottom sheet ---- */
 .sheet {
   position: fixed; inset: 0; z-index: 60;

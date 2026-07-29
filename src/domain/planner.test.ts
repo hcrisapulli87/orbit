@@ -313,6 +313,46 @@ describe('suggestBlocks', () => {
     const finished = task({ due_on: TODAY, status: 'done' })
     expect(suggest([birthday, later, finished])).toEqual([])
   })
+
+  // The planner used to route around a task that already had a time, so the
+  // one thing you had definitely committed to was the one thing that never
+  // appeared on the calendar. It's pinned now.
+  it('pins a task that already has a time to the time it was given', () => {
+    const appointment = task({ due_on: TODAY, due_time: '14:00', estimate_min: 45 })
+    expect(suggest([appointment])).toEqual([
+      { taskId: appointment.id, startMin: 840, endMin: 885 },
+    ])
+  })
+
+  it('fills the gaps around a pin rather than through it', () => {
+    const appointment = task({ due_on: TODAY, due_time: '10:00', estimate_min: 60 })
+    const loose = task({ due_on: TODAY, estimate_min: 90 })
+    const out = suggest([appointment, loose])
+    expect(out).toContainEqual({ taskId: appointment.id, startMin: 600, endMin: 660 })
+    // 9:00–10:00 is only sixty minutes, so ninety goes after the appointment.
+    expect(out).toContainEqual({ taskId: loose.id, startMin: 660, endMin: 750 })
+  })
+
+  it('pins even outside the working day, because a pin is a fact not a suggestion', () => {
+    const earlyStart = task({ due_on: TODAY, due_time: '07:00', estimate_min: 30 })
+    expect(suggest([earlyStart])).toEqual([
+      { taskId: earlyStart.id, startMin: 420, endMin: 450 },
+    ])
+  })
+
+  // Only today gets laid out. Asking to plan today used to scatter the undated
+  // backlog across it, which is the opposite of a plan.
+  it('places only today’s work, never the backlog or a later day', () => {
+    const today = task({ due_on: TODAY, estimate_min: 30 })
+    const someday = task({ estimate_min: 30 })
+    const friday = task({ due_on: '2026-07-31', estimate_min: 30 })
+    expect(suggest([today, someday, friday]).map((b) => b.taskId)).toEqual([today.id])
+  })
+
+  it('ignores a time belonging to another day', () => {
+    const tomorrow = task({ due_on: '2026-07-28', due_time: '09:00' })
+    expect(suggest([tomorrow])).toEqual([])
+  })
 })
 
 describe('withinHorizon', () => {

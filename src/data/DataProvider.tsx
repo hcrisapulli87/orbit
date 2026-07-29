@@ -8,11 +8,12 @@ import { createTask, deleteTask, fetchTasks, setTaskDone, updateTask } from './t
 import { advanceAfterCompletion, createSeries, ensureOccurrences, fetchSeries, ruleOf } from './series'
 import { nextAfterCompletion } from '../domain/recurrence'
 import { DEFAULT_SETTINGS, fetchSettings, updateSettings } from './settings'
-import { createBlock, deleteBlock, fetchBlocks, replacePlannerBlocks } from './blocks'
+import {
+  clearPlannerBlocks, createBlock, deleteBlock, fetchBlocks, replacePlannerBlocks, updateBlock,
+} from './blocks'
 import { fetchTemplateItems, fetchTemplates } from './templates'
 import { suggestBlocks } from '../domain/planner'
 import { minutesToTime, parseTimeToMinutes } from '../domain/day'
-import { defaultEstimateFor } from '../domain/planner'
 import { useRealtime } from './useRealtime'
 import { applyAppearance, storeAppearance } from '../lib/appearance'
 import type {
@@ -33,8 +34,10 @@ interface DataContextValue {
   reload: () => void
   saveSettings: (patch: Partial<Settings>) => Promise<void>
   addBlock: (block: Omit<Block, 'id' | 'owner_id' | 'created_at'>) => Promise<void>
+  patchBlock: (id: string, patch: Partial<Block>) => Promise<void>
   removeBlock: (id: string) => Promise<void>
   planDay: (date: string) => Promise<void>
+  clearPlan: (date: string) => Promise<void>
   addTask: (task: NewTask) => Promise<void>
   addSeries: (series: NewSeries) => Promise<void>
   toggleTask: (task: Task) => Promise<void>
@@ -201,6 +204,28 @@ export function DataProvider({ children }: { children: ReactNode }) {
     [user, reload],
   )
 
+  /**
+   * Edit a block, and take ownership of it in the same breath.
+   *
+   * Moving or renaming a suggestion makes it yours, so it's promoted to
+   * source='manual' and the next auto-plan leaves it alone. Without that, the
+   * fix you just made to a suggested slot would vanish the next time you
+   * tapped Auto-plan.
+   */
+  const patchBlock = useCallback(
+    async (id: string, patch: Partial<Block>) => {
+      const full = { ...patch, source: 'manual' as const }
+      setBlocks((prev) => prev.map((b) => (b.id === id ? { ...b, ...full } : b)))
+      try {
+        await updateBlock(id, full)
+      } catch (e: unknown) {
+        setError(e instanceof Error ? e.message : 'Could not save that block')
+        reload()
+      }
+    },
+    [reload],
+  )
+
   const removeBlock = useCallback(
     async (id: string) => {
       setBlocks((prev) => prev.filter((b) => b.id !== id))
@@ -214,12 +239,31 @@ export function DataProvider({ children }: { children: ReactNode }) {
     [reload],
   )
 
+  const clearPlan = useCallback(
+    async (date: string) => {
+      if (!user) return
+      setBlocks((prev) => prev.filter((b) => !(b.on_date === date && b.source === 'planner')))
+      try {
+        await clearPlannerBlocks(user.id, date)
+      } catch (e: unknown) {
+        setError(e instanceof Error ? e.message : 'Could not clear the plan')
+        reload()
+      }
+    },
+    [user, reload],
+  )
+
   /**
-   * Lay today's work into the free gaps.
+   * Lay the day's own work onto the calendar.
    *
    * Only source='planner' rows are cleared and rebuilt, so re-planning never
    * disturbs a block placed by hand — and anything you blocked yourself is
    * treated as committed time rather than being scheduled twice.
+   *
+   * Tasks that already carry a time are the planner's job now rather than
+   * something it works around: suggestBlocks pins them where they were put and
+   * fills the gaps between them. That's why they're no longer added to `busy`
+   * or to `alreadyBlocked` here.
    */
   const planDay = useCallback(
     async (date: string) => {
@@ -234,24 +278,14 @@ export function DataProvider({ children }: { children: ReactNode }) {
           return start !== null && end !== null ? [{ start, end }] : []
         })
 
-        // A task with a time of day is already committed to that time.
-        for (const t of tasks) {
-          if (t.due_on !== date || t.status !== 'open') continue
-          const start = parseTimeToMinutes(t.due_time)
-          if (start === null) continue
-          busy.push({ start, end: start + Math.max(15, defaultEstimateFor(t)) })
-        }
-
         const suggestions = suggestBlocks(tasks, {
           today: date,
           dayStartMin: parseTimeToMinutes(settings.day_start) ?? 480,
           dayEndMin: parseTimeToMinutes(settings.day_end) ?? 1260,
           busy,
-          alreadyBlocked: [
-            ...manual.map((b) => b.task_id).filter((id): id is string => id !== null),
-            // Something with its own time doesn't need a block as well.
-            ...tasks.filter((t) => t.due_on === date && t.due_time).map((t) => t.id),
-          ],
+          alreadyBlocked: manual
+            .map((b) => b.task_id)
+            .filter((id): id is string => id !== null),
         })
 
         await replacePlannerBlocks(
@@ -264,6 +298,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
             task_id: s.taskId,
             label: '',
             source: 'planner' as const,
+            all_day: false,
           })),
         )
         reload()
@@ -308,7 +343,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
         areas, projects, tasks, series, blocks, templates, templateItems,
         settings, loading, error, reload,
         addTask, addSeries, toggleTask, patchTask, removeTask,
-        saveSettings, addBlock, removeBlock, planDay,
+        saveSettings, addBlock, patchBlock, removeBlock, planDay, clearPlan,
       }}
     >
       {children}

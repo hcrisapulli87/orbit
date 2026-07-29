@@ -3,6 +3,7 @@ import { ScreenHeader } from '../components/ScreenHeader'
 import { TaskRow } from '../components/TaskRow'
 import { SegmentedControl } from '../components/ui/SegmentedControl'
 import { DayColumn, HOUR_PX, timedEntriesFor } from '../components/calendar/DayColumn'
+import { BlockSheet, blockRange } from '../components/calendar/BlockSheet'
 import { useData } from '../data/DataProvider'
 import { monthGrid, monthLabel, visibleWindow, weekDays } from '../domain/calendarGrid'
 import {
@@ -295,8 +296,9 @@ function DayView({
   dayStartMin: number
   dayEndMin: number
 }) {
-  const { addBlock, removeBlock } = useData()
+  const { addBlock } = useData()
   const [slot, setSlot] = useState<number | null>(null)
+  const [editing, setEditing] = useState<Block | null>(null)
 
   const items = byDay.get(date) ?? []
   const untimed = items.filter((t) => !t.due_time)
@@ -319,6 +321,7 @@ function DayView({
       task_id: task?.id ?? null,
       label: task ? '' : 'Busy',
       source: 'manual',
+      all_day: false,
     })
     setSlot(null)
   }
@@ -359,20 +362,20 @@ function DayView({
       {blocks.length > 0 && (
         <div className="card">
           <h2>Blocks</h2>
+          <p className="hint">Tap one to change the time, rename it or remove it.</p>
           {blocks.map((b) => (
-            <div className="row--between setting-row" key={b.id}>
-              <span>
-                <strong>{formatTime(b.start_time)}</strong>{' '}
+            <button key={b.id} className="blockrow" onClick={() => setEditing(b)}>
+              <span className="blockrow__when">{blockRange(b)}</span>
+              <span className="blockrow__what">
                 {b.label || tasks.find((t) => t.id === b.task_id)?.title || 'Blocked'}
-                {b.source === 'planner' && <span className="muted"> · auto</span>}
               </span>
-              <button className="btn btn--small" onClick={() => void removeBlock(b.id)}>
-                Remove
-              </button>
-            </div>
+              {b.source === 'planner' && <span className="muted">auto</span>}
+            </button>
           ))}
         </div>
       )}
+
+      {editing && <BlockSheet block={editing} onClose={() => setEditing(null)} />}
 
       {slot !== null && (
         <div className="sheet" role="dialog" aria-label="Block out time">

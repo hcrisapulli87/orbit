@@ -28,9 +28,27 @@ export async function createBlock(
   if (error) throw error
 }
 
+/**
+ * Edit a block in place.
+ *
+ * Callers promote a planner block to source='manual' as part of the patch —
+ * see patchBlock in DataProvider. A block you have moved by hand is one you
+ * placed by hand, and replacePlannerBlocks would otherwise throw the change
+ * away on the next auto-plan.
+ */
+export async function updateBlock(id: string, patch: Partial<Block>): Promise<void> {
+  const { error } = await supabase.from('task_blocks').update(patch).eq('id', id)
+  if (error) throw error
+}
+
 export async function deleteBlock(id: string): Promise<void> {
   const { error } = await supabase.from('task_blocks').delete().eq('id', id)
   if (error) throw error
+}
+
+/** Drop the auto-planner's suggestions for one day, leaving hand-placed blocks. */
+export async function clearPlannerBlocks(ownerId: string, date: string): Promise<void> {
+  await replacePlannerBlocks(ownerId, date, [])
 }
 
 /**

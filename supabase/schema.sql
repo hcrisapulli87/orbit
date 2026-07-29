@@ -309,6 +309,27 @@ alter table public.task_settings
   add column if not exists ui_mode    text not null default 'system'
     check (ui_mode in ('system', 'light', 'dark'));
 
+-- ── v9: all-day blocks, and a notification for important dates ────────────────
+
+-- A block with a label and no task is an ordinary calendar entry, which is what
+-- makes the calendar usable as a calendar. All-day entries are the one shape
+-- the start/end pair couldn't express. Times are still written (00:00–23:59) so
+-- the existing end-after-start constraint needs no exception and the grid has
+-- something to lay out if the flag is turned off again.
+alter table public.task_blocks
+  add column if not exists all_day boolean not null default false;
+
+-- Events were the one thing that never notified — deliberately, since a
+-- birthday is not a job. But the useful moment for a birthday is a week BEFORE
+-- it, while there is still time to buy something, so it gets its own kind
+-- rather than borrowing due_today's. Recreated rather than added to because
+-- Postgres has no "alter constraint".
+alter table public.task_notifications
+  drop constraint if exists task_notifications_kind_check;
+alter table public.task_notifications
+  add constraint task_notifications_kind_check
+  check (kind in ('due_soon', 'due_today', 'overdue', 'block_start', 'event_lead'));
+
 -- ── Seeds ─────────────────────────────────────────────────────────────────────
 -- Orbit is single-user, so the seeds belong to one account. Change the email
 -- below if the owner ever changes. Idempotent: re-running inserts nothing new.

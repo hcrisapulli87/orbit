@@ -6,7 +6,7 @@
 // the plan must never quietly hide a commitment: when the day doesn't fit, it
 // says by how much instead of trimming the list.
 
-import { compareISO, daysBetween, toLocalISODate } from './day'
+import { compareISO, daysBetween, parseTimeToMinutes, toLocalISODate } from './day'
 import type { ISODate } from './day'
 
 /** The shape the planner needs. A stored Task satisfies it. */
@@ -16,6 +16,9 @@ export interface Plannable {
   status: 'open' | 'done' | 'dropped'
   priority: number
   due_on: string | null
+  /** A time of day, when one was given. The planner pins these rather than
+      inventing a slot for them. */
+  due_time?: string | null
   starts_on: string | null
   estimate_min: number | null
   created_at: string
@@ -141,14 +144,26 @@ export interface BlockSuggestion {
 /**
  * Suggest where today's work could actually go.
  *
- * Deliberately conservative: it schedules in plan order, never splits a task
- * across gaps, never overruns the end of the day, and silently gives up on
- * anything that doesn't fit rather than squeezing it in. A suggestion you have
- * to undo is worse than no suggestion.
+ * Two passes, in this order, and the order is the point:
  *
- * `busy` is everything already committed — manual blocks and tasks that carry
- * a time of day. `alreadyBlocked` keeps it from double-booking work you have
- * placed by hand.
+ * 1. Anything already scheduled — dated today AND carrying a time — is *pinned*
+ *    to the time it was given. The plan you already made is the plan.
+ * 2. Today's remaining untimed work fills the gaps around those pins.
+ *
+ * Only today's work is ever placed. It used to draw from whatever the capacity
+ * split happened to leave in `should`, which meant asking it to plan the day
+ * scattered undated backlog across it — and then it skipped the tasks that
+ * *did* have a time, so the one thing you'd definitely committed to never
+ * appeared on the calendar at all. With `buildToday` partitioning by date,
+ * `must + should` is exactly "overdue or due today", which is the right queue.
+ *
+ * Otherwise deliberately conservative: it schedules in plan order, never splits
+ * a task across gaps, never overruns the end of the day, and silently gives up
+ * on anything that doesn't fit rather than squeezing it in. A suggestion you
+ * have to undo is worse than no suggestion.
+ *
+ * `busy` is time already committed by hand. `alreadyBlocked` keeps it from
+ * double-booking work you have placed yourself.
  */
 export function suggestBlocks(
   tasks: Plannable[],
@@ -170,14 +185,31 @@ export function suggestBlocks(
   const taken: Interval[] = [...busy].sort((a, b) => a.start - b.start)
   const out: BlockSuggestion[] = []
 
+  const place = (task: Plannable, startMin: number, endMin: number) => {
+    out.push({ taskId: task.id, startMin, endMin })
+    taken.push({ start: startMin, end: endMin })
+    taken.sort((a, b) => a.start - b.start)
+  }
+
+  // Pass one: the times you already chose. Placed even when they clash with
+  // something else — a pin is a fact about the day, not a suggestion, and
+  // moving it would be the planner overruling you.
+  const pinned = new Set<string>()
   for (const task of queue) {
+    if (task.due_on !== today) continue
+    const at = parseTimeToMinutes(task.due_time ?? null)
+    if (at === null) continue
+    pinned.add(task.id)
+    place(task, at, at + Math.max(15, defaultEstimateFor(task)))
+  }
+
+  // Pass two: everything else today, into whatever gaps are left.
+  for (const task of queue) {
+    if (pinned.has(task.id)) continue
     const need = Math.max(15, defaultEstimateFor(task))
     const slot = firstGap(taken, dayStartMin, dayEndMin, need)
-    if (!slot) continue
-
-    out.push({ taskId: task.id, startMin: slot, endMin: slot + need })
-    taken.push({ start: slot, end: slot + need })
-    taken.sort((a, b) => a.start - b.start)
+    if (slot === null) continue
+    place(task, slot, slot + need)
   }
 
   return out

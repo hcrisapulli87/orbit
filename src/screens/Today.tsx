@@ -4,12 +4,13 @@ import { ScreenHeader } from '../components/ScreenHeader'
 import { TaskRow } from '../components/TaskRow'
 import { Icon } from '../components/Icon'
 import { EmptyState } from '../components/ui/EmptyState'
+import { BlockSheet, blockRange } from '../components/calendar/BlockSheet'
 import { useData } from '../data/DataProvider'
 import { buildToday } from '../domain/planner'
 import { collapsesSections, usesSpine } from '../domain/appearance'
-import { formatTime, relativeLabel, todayISO, weekdayOf } from '../domain/day'
+import { relativeLabel, todayISO, weekdayOf } from '../domain/day'
 import TodaySpine from './TodaySpine'
-import type { Task } from '../data/types'
+import type { Block, Task } from '../data/types'
 
 const WEEKDAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']
 
@@ -17,9 +18,10 @@ const hours = (min: number) =>
   min >= 60 ? `${Math.floor(min / 60)}h${min % 60 ? ` ${min % 60}m` : ''}` : `${min}m`
 
 export default function Today() {
-  const { tasks, series, blocks, settings, error, planDay } = useData()
+  const { tasks, series, blocks, settings, error, planDay, clearPlan } = useData()
   const today = todayISO()
   const todayBlocks = blocks.filter((b) => b.on_date === today)
+  const [editing, setEditing] = useState<Block | null>(null)
 
   // lead_days lives on the series, so occurrences borrow it for scoring: a
   // birthday with a week of lead should surface a week out, not on the day.
@@ -99,15 +101,29 @@ export default function Today() {
       {todayBlocks.length > 0 && (
         <div className="card">
           <h2>Blocked out</h2>
+          <p className="hint">Tap one to change the time, rename it or remove it.</p>
           {todayBlocks.map((b) => (
-            <p key={b.id} style={{ margin: '4px 0' }}>
-              <strong>{formatTime(b.start_time)}</strong>–{formatTime(b.end_time)}{' '}
-              {b.label || tasks.find((t) => t.id === b.task_id)?.title || 'Blocked'}
-              {b.source === 'planner' && <span className="muted"> · suggested</span>}
-            </p>
+            <button key={b.id} className="blockrow" onClick={() => setEditing(b)}>
+              <span className="blockrow__when">{blockRange(b)}</span>
+              <span className="blockrow__what">
+                {b.label || tasks.find((t) => t.id === b.task_id)?.title || 'Blocked'}
+              </span>
+              {b.source === 'planner' && <span className="muted">suggested</span>}
+            </button>
           ))}
+          {todayBlocks.some((b) => b.source === 'planner') && (
+            <button
+              className="btn btn--small"
+              style={{ marginTop: 10 }}
+              onClick={() => void clearPlan(today)}
+            >
+              Clear the auto-plan
+            </button>
+          )}
         </div>
       )}
+
+      {editing && <BlockSheet block={editing} onClose={() => setEditing(null)} />}
 
       {nothing && (
         <EmptyState icon="today" title="Nothing needs you today" hint="Capture something and it will show up here." />
