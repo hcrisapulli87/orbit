@@ -41,7 +41,13 @@ export async function updateSeries(id: string, patch: Partial<Series>): Promise<
 }
 
 export async function deleteSeries(id: string): Promise<void> {
-  // Occurrences cascade — deleting the rule deletes its future.
+  // Occurrences would cascade from the foreign key, but they're deleted
+  // explicitly first so the behaviour doesn't depend on a database feature the
+  // in-memory demo store doesn't have. In production the cascade then finds
+  // nothing left to do.
+  const { error: occError } = await supabase.from('task_tasks').delete().eq('series_id', id)
+  if (occError) throw occError
+
   const { error } = await supabase.from('task_series').delete().eq('id', id)
   if (error) throw error
 }
