@@ -56,6 +56,17 @@ export default function Settings() {
       />
 
       <div className="card">
+        <h2>How Orbit works</h2>
+        <Link className="choice" to="/help">
+          <span className="choice__body">
+            <span className="choice__name">Capture, Today, the calendar, repeats</span>
+            <span className="choice__sub">Every feature, and what decides what</span>
+          </span>
+          <span className="muted" aria-hidden="true">›</span>
+        </Link>
+      </div>
+
+      <div className="card">
         <h2>Appearance</h2>
         <Link className="choice" to="/appearance">
           <span className="choice__body">

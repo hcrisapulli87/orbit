@@ -16,6 +16,7 @@ import ProjectDetail from './screens/ProjectDetail'
 import TaskDetail from './screens/TaskDetail'
 import SeriesDetail from './screens/SeriesDetail'
 import Templates from './screens/Templates'
+import Help from './screens/Help'
 
 export default function App() {
   const { session, loading } = useAuth()
@@ -46,6 +47,7 @@ export default function App() {
             <Route path="/task/:id" element={<TaskDetail />} />
             <Route path="/series/:id" element={<SeriesDetail />} />
             <Route path="/templates" element={<Templates />} />
+            <Route path="/help" element={<Help />} />
             <Route path="*" element={<Today />} />
           </Route>
         </Routes>

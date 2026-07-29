@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import type { FormEvent, KeyboardEvent } from 'react'
-import { useSearchParams } from 'react-router-dom'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import { useData } from '../data/DataProvider'
 import { describeRecurrence, inferEvent, parseCapture } from '../domain/capture'
 import type { RecurrenceHint } from '../domain/capture'
@@ -29,6 +29,7 @@ const YEARLY: RecurrenceHint = {
  */
 export function CaptureBar() {
   const { projects, areas, addTask, addSeries } = useData()
+  const navigate = useNavigate()
   const [open, setOpen] = useState(false)
   const [text, setText] = useState('')
   const inputRef = useRef<HTMLInputElement>(null)
@@ -204,6 +205,22 @@ export function CaptureBar() {
             That date could be read two ways — Orbit took the Australian one. The time was
             dropped rather than guessed.
           </p>
+        )}
+
+        {/* The placeholder was the only documentation the syntax had, and it
+            disappears the moment you start typing. onMouseDown, not onClick:
+            the input's onBlur closes the bar first otherwise. */}
+        {text.trim() === '' && (
+          <button
+            type="button"
+            className="capture__help"
+            onMouseDown={(e) => {
+              e.preventDefault()
+              navigate('/help')
+            }}
+          >
+            What else can I type here?
+          </button>
         )}
       </form>
     </div>

@@ -14,6 +14,10 @@ import type { Block, Task } from '../data/types'
 
 const WEEKDAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']
 
+/** Dismissal of the first-run card. localStorage, the same mirror the
+    appearance uses — it's a preference about chrome, not data worth a row. */
+const INTRO_KEY = 'orbit.introDismissed'
+
 const hours = (min: number) =>
   min >= 60 ? `${Math.floor(min / 60)}h${min % 60 ? ` ${min % 60}m` : ''}` : `${min}m`
 
@@ -22,6 +26,7 @@ export default function Today() {
   const today = todayISO()
   const todayBlocks = blocks.filter((b) => b.on_date === today)
   const [editing, setEditing] = useState<Block | null>(null)
+  const [dismissed, setDismissed] = useState(() => localStorage.getItem(INTRO_KEY) === '1')
 
   // lead_days lives on the series, so occurrences borrow it for scoring: a
   // birthday with a week of lead should surface a week out, not on the day.
@@ -57,9 +62,14 @@ export default function Today() {
         title={WEEKDAYS[weekdayOf(today)]}
         sub={relativeLabel(today, today)}
         action={
-          <Link className="gear" to="/settings" aria-label="Settings">
-            <Icon name="gear" />
-          </Link>
+          <span className="row">
+            <Link className="gear" to="/help" aria-label="How Orbit works">
+              <Icon name="help" />
+            </Link>
+            <Link className="gear" to="/settings" aria-label="Settings">
+              <Icon name="gear" />
+            </Link>
+          </span>
         }
       />
       {error && <p className="error">{error}</p>}
@@ -125,7 +135,39 @@ export default function Today() {
 
       {editing && <BlockSheet block={editing} onClose={() => setEditing(null)} />}
 
-      {nothing && (
+      {/* First run. Shown while there is genuinely nothing in the app rather
+          than on any empty day, and dismissible for good — an onboarding card
+          that outstays its welcome is worse than none. */}
+      {tasks.length === 0 && !dismissed && (
+        <div className="card">
+          <div className="row--between">
+            <h2 style={{ margin: 0 }}>Start here</h2>
+            <button
+              className="btn btn--small"
+              onClick={() => {
+                localStorage.setItem(INTRO_KEY, '1')
+                setDismissed(true)
+              }}
+            >
+              Got it
+            </button>
+          </div>
+          <p className="hint" style={{ marginTop: 10 }}>
+            Everything goes in through the bar at the bottom, and it reads what
+            you type — try <code>pay rego fri 3pm !high @car</code>, or{' '}
+            <code>stretch every day</code> to make something repeat.
+          </p>
+          <p className="hint" style={{ margin: 0 }}>
+            Today then sorts itself: overdue and flagged work first, the rest of
+            today under it, the week ahead below that.
+          </p>
+          <Link className="btn btn--small" style={{ marginTop: 12 }} to="/help">
+            How the rest of it works
+          </Link>
+        </div>
+      )}
+
+      {nothing && tasks.length > 0 && (
         <EmptyState icon="today" title="Nothing needs you today" hint="Capture something and it will show up here." />
       )}
 

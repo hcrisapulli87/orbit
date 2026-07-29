@@ -789,6 +789,24 @@ button.daycol__item {
 }
 .daypicker__day:active { transform: scale(0.95); }
 
+/* ---- help screen ---- */
+.deflist { margin: 0; }
+.deflist > div {
+  display: flex; gap: 12px; padding: 7px 0; border-bottom: 1px solid var(--hairline);
+}
+.deflist > div:last-child { border-bottom: 0; }
+.deflist dt { flex: 0 0 40%; font-weight: 700; font-size: 0.82rem; }
+.deflist dd { flex: 1; margin: 0; color: var(--dim); font-size: 0.82rem; line-height: 1.45; }
+.example {
+  margin: 0 0 12px; padding: 11px 13px; border-radius: var(--radius-sm);
+  background: var(--inner); font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.82rem; overflow-x: auto; white-space: nowrap;
+}
+code {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 0.92em;
+  background: var(--inner); border-radius: 5px; padding: 1px 5px;
+}
+
 /* ---- a whole habit row is the way into its editor ---- */
 .habitlink { text-decoration: none; color: inherit; }
 .habitlink:active { opacity: 0.6; }
@@ -838,6 +856,10 @@ button.daycol__item {
 .capture__input:focus { outline: none; }
 .capture__chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
 .capture__hint { margin: 8px 4px 2px; font-size: 0.72rem; color: var(--dim); }
+.capture__help {
+  margin: 8px 0 0; padding: 0; border: 0; background: none; cursor: pointer;
+  font: inherit; font-size: 0.72rem; color: var(--accent-text); text-decoration: underline;
+}
 
 /* ---- offline banner ----
    A fill in both modes, so it takes the bright warn and its own dark ink

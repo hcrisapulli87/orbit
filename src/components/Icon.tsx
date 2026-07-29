@@ -34,6 +34,10 @@ const PATHS = {
   templates: 'M12 3l8.5 4.75L12 12.5 3.5 7.75z M3.5 12.25L12 17l8.5-4.75 M3.5 16.5L12 21.25l8.5-4.75',
   // struck-through circle: the thing you asked for isn't here
   missing: 'M12 21.2a9.2 9.2 0 1 0 0-18.4 9.2 9.2 0 0 0 0 18.4z M8.5 8.5l7 7',
+  // a question mark in a ring, at the same weight as the rest
+  help:
+    'M12 21.2a9.2 9.2 0 1 0 0-18.4 9.2 9.2 0 0 0 0 18.4z ' +
+    'M9.4 9.6a2.7 2.7 0 0 1 5.2.9c0 1.8-2.6 2.2-2.6 4 M12 17.2h.01',
 } as const
 
 export type IconName = keyof typeof PATHS

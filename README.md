@@ -10,22 +10,32 @@ screen.
   `pay rego fri 3pm !high @car` and it parses the date, time, priority and
   project. Anything it doesn't understand stays in the title and lands in the
   Inbox, undated.
-- **Today.** An auto-built plan: overdue first, then what fits the day's
-  capacity, then what doesn't. When the day is over-committed it says by how
-  much rather than hiding anything.
+- **Today.** Four sections, each decided by a task's date rather than by
+  leftover capacity: **Must** (overdue, plus today's flagged work), **Should**
+  (the rest of today), **Coming up** (the next seven days, and birthdays inside
+  their notice period), **If there's time** (no date at all). The capacity bar
+  says how big today is; when the day is over-committed it says by how much
+  rather than hiding anything.
 - **Calendar.** Month, week and day. Tasks, important dates and time blocks in
-  one grid. Tap an empty hour to block it out; "Auto-plan my day" fills the
-  gaps.
+  one grid. Tap an empty half-hour to name an event, invent a task or hold the
+  slot for something already on the list; tap anything on the grid to edit it,
+  or hold and drag it to a new time. "Auto-plan my day" pins today's timed work
+  where you put it and fills the gaps around it.
 - **Recurrence that actually covers real life.** Every Tuesday, every second
   Tuesday, last day of the month, second Tuesday of the month, yearly — and
-  "six months after I last did it", for the car service.
+  "six months after I last did it", for the car service. Editable after the
+  fact: changing a rule reaches every future occurrence and leaves the ones
+  you've already done as they happened.
 - **Habits** with streaks that count scheduled days, so a Mon/Wed/Fri habit
   isn't broken by Tuesday.
 - **Lists and projects.** Groceries and Wishlist are lists; anything with steps
-  is a project, with subtasks and a progress bar.
+  is a project, with subtasks and a progress bar. Make your own of either.
 - **Templates.** Save a project you've just finished as a template, then
   re-run it anchored to a new date.
+- **Birthdays** that repeat yearly, cost nothing against the day, and warn you
+  far enough ahead to buy something.
 - **Reminders** by web push, plus a morning digest posted to Discord.
+- **A help screen** at `/help` that explains all of the above in the app.
 
 ## Design rules
 
@@ -35,7 +45,9 @@ Two ideas run through the whole thing.
 picker, no context tag, no manual estimate, no "is this a habit?" toggle.
 Optional fields go unfilled, and features built on them become dead weight.
 Estimates come from kind and priority; habits are identified by cadence;
-important dates are recognised from the words you typed.
+important dates are recognised from the words you typed. Where a form does
+exist — the repeat editor, a new list, a birthday — every control on it starts
+at a working default, so stopping halfway still gives you the right thing.
 
 **A guess is labelled as a guess.** `3/8` could be 3 August or 8 March, so the
 capture bar commits to the Australian reading, marks the parse low-confidence,
@@ -62,10 +74,10 @@ stylesheet back to prove the two copies agree, and fails if a theme ever
 declares a colour of its own.
 
 Halo · Indigo · Dark is the app as it was before any of this existed, value for
-value. Only *Today* differs between themes: Terrain folds Should and
-If-there's-time behind a summary line, and Transit swaps the list for a
-timeline (`screens/TodaySpine.tsx`) built from the same `buildToday()` plan and
-the same `HOUR_PX` the calendar uses.
+value. Only *Today* differs between themes: Terrain folds everything below Must
+behind a summary line, and Transit swaps the list for a timeline
+(`screens/TodaySpine.tsx`) built from the same `buildToday()` plan and the same
+`HOUR_PX` the calendar uses.
 
 Postgres is the source of truth. `localStorage` mirrors the three values for one
 reason: `main.tsx` applies them before React mounts, so a cold start doesn't
@@ -95,7 +107,7 @@ supabase/
 
 `domain/` is the heavy-tested half: recurrence, capture parsing, planner
 scoring, streaks, calendar geometry, template instantiation, appearance
-contrast. 298 tests, all pure, `now` always injected, no clock mocking.
+contrast. 320 tests, all pure, `now` always injected, no clock mocking.
 
 ## Setup
 
@@ -103,7 +115,8 @@ contrast. 298 tests, all pure, `now` always injected, no clock mocking.
 2. Copy `.env.example` to `.env` and fill in `VITE_SUPABASE_URL` and
    `VITE_SUPABASE_PUBLISHABLE_KEY`.
 3. Run `supabase/schema.sql` in the Supabase SQL editor. It's idempotent —
-   running it twice is a clean no-op, which is the proof it worked.
+   running it twice is a clean no-op, which is the proof it worked, and it's
+   also how an existing database picks up a new version.
 4. `npm run dev`
 
 The publishable key is a public browser key; security lives in Row-Level

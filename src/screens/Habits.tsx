@@ -66,7 +66,7 @@ export default function Habits() {
         <EmptyState
           icon="habits"
           title="Nothing repeating yet"
-          hint="Capture something like “stretch every day” or “bins every tue”."
+          hint="Capture something like “stretch every day” or “bins every tue” — or open any task and tap “Make this repeat”."
         />
       )}
 
