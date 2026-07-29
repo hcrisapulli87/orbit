@@ -112,7 +112,7 @@ Deno.serve(async (req) => {
     // materialised for.
     supabase
       .from('task_digest_v')
-      .select('id, kind, status, due_on, title, lead_days')
+      .select('id, owner_id, kind, status, due_on, title, lead_days')
       .eq('kind', 'event')
       .eq('status', 'open')
       .gte('due_on', day)
