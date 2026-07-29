@@ -455,14 +455,16 @@ body::before {
   -webkit-backdrop-filter: var(--blur);
   box-shadow: var(--card-shadow);
 }
-.card h2 {
+/* A sheet is a card that slid up from the bottom, so it takes the same
+   headings. Without this the h2s inside one fall back to the UA's 1.5em. */
+.card h2, .sheet__panel h2 {
   margin: 0 0 12px; font-size: 0.72rem; text-transform: uppercase;
   letter-spacing: 0.1em; color: var(--dim); font-weight: 700;
 }
 /* A one-line explanation of what a section actually contains. Pulled up under
    its heading so it reads as part of the label, not as content. */
 .hint { margin: 0 0 12px; font-size: 0.78rem; color: var(--dim); line-height: 1.45; }
-.card h2 + .hint { margin-top: -8px; }
+.card h2 + .hint, .sheet__panel h2 + .hint { margin-top: -8px; }
 
 .input, select.input, textarea.input {
   width: 100%; padding: 13px 14px; border: 1px solid var(--border); border-radius: var(--radius-sm);
@@ -620,6 +622,9 @@ body::before {
 .pip--cal { width: 5px; height: 5px; border-radius: 50%; background: var(--mark); }
 .pip--event { background: var(--mark-2); }
 .pip--done { background: var(--mark-done); opacity: 0.6; }
+/* Square rather than round: an appointment is a span of time, a task is a
+   moment, and at five pixels shape is the only difference that survives. */
+.pip--block { border-radius: 1px; background: var(--mark-2); }
 
 /* ---- hour grid, shared by week and day ---- */
 .weekgrid { display: flex; gap: 2px; }
@@ -640,6 +645,23 @@ body::before {
 .weekgrid__head strong { color: var(--ink); font-size: 0.85rem; }
 .weekgrid__head--today strong { color: var(--accent-text); }
 
+/* Untimed work had nowhere to go in the week at all, so a day off read as an
+   empty column. One short row above the grid, with a count rather than titles —
+   at this width a truncated title says less than "three things". */
+.weekgrid__allday {
+  width: 100%; height: 20px; margin-bottom: 2px; padding: 0; border: 0; cursor: pointer;
+  background: var(--track); border-radius: 4px;
+  display: flex; align-items: center; justify-content: center;
+}
+.weekgrid__allday--label {
+  background: none; cursor: default; font-size: 0.55rem; letter-spacing: 0.04em;
+  justify-content: flex-end; padding-right: 4px;
+}
+.weekgrid__alldaypip {
+  font-size: 0.6rem; font-weight: 800; color: var(--accent-ink);
+  background: var(--mark-2); border-radius: 999px; padding: 0 5px; line-height: 14px;
+}
+
 .daycol { position: relative; background: var(--track); border-radius: 8px; }
 .daycol__slot {
   position: absolute; left: 0; right: 0; padding: 0; cursor: pointer;
@@ -656,6 +678,18 @@ body::before {
 .daycol__item--block {
   background: color-mix(in srgb, var(--mark-2) 26%, transparent);
   border-color: color-mix(in srgb, var(--mark-2) 50%, transparent);
+}
+/* As a button it inherits none of the above, so restate the parts a UA
+   stylesheet would otherwise take back. */
+button.daycol__item {
+  font-family: inherit; text-align: left; cursor: pointer;
+  /* Not `none`: a plain press has to keep scrolling the day. The drag hook
+     switches this off for the one item actually being dragged. */
+  touch-action: pan-y;
+}
+.daycol__item--dragging {
+  z-index: 2; opacity: 0.9; box-shadow: 0 6px 18px rgb(0 0 0 / 0.35);
+  transform: scale(1.03);
 }
 .daycol__time { color: var(--dim); }
 
