@@ -17,6 +17,8 @@ import TaskDetail from './screens/TaskDetail'
 import SeriesDetail from './screens/SeriesDetail'
 import Templates from './screens/Templates'
 import Help from './screens/Help'
+import Search from './screens/Search'
+import Logbook from './screens/Logbook'
 
 export default function App() {
   const { session, loading } = useAuth()
@@ -48,6 +50,8 @@ export default function App() {
             <Route path="/series/:id" element={<SeriesDetail />} />
             <Route path="/templates" element={<Templates />} />
             <Route path="/help" element={<Help />} />
+            <Route path="/search" element={<Search />} />
+            <Route path="/logbook" element={<Logbook />} />
             <Route path="*" element={<Today />} />
           </Route>
         </Routes>

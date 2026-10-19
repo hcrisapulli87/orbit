@@ -28,6 +28,13 @@ screen.
   you've already done as they happened.
 - **Habits** with streaks that count scheduled days, so a Mon/Wed/Fri habit
   isn't broken by Tuesday.
+- **Undo, swipe and reschedule.** Swipe a task right to tick it, left to push
+  it to tomorrow; ticking, moving, deleting and rescheduling all leave an undo
+  toast behind. Today's overdue banner moves the whole pile in one tap, and
+  skips a missed repeat rather than stacking it on the next one.
+- **Search and a Logbook.** Search covers titles, notes, tags and projects
+  from memory, one row per repeating task, and opens with `/`. The Logbook
+  shows everything you've finished, by day, paging further back on request.
 - **Lists and projects.** Groceries and Wishlist are lists; anything with steps
   is a project, with subtasks and a progress bar. Make your own of either.
 - **Templates.** Save a project you've just finished as a template, then
@@ -107,7 +114,8 @@ supabase/
 
 `domain/` is the heavy-tested half: recurrence, capture parsing, planner
 scoring, streaks, calendar geometry, template instantiation, appearance
-contrast. 320 tests, all pure, `now` always injected, no clock mocking.
+contrast, search ranking, overdue rescheduling, Logbook paging and the swipe
+gesture. All pure, `now` always injected, no clock mocking.
 
 ## Setup
 
@@ -173,4 +181,5 @@ second channel, not redundancy for its own sake.
 Google Calendar sync · bills and spending (they live in Tally) · multi-user
 sharing · an offline write queue · attachments · sub-subtasks · iCal import
 or export · natural-language *editing* ("move everything to next week") ·
-location reminders · time tracking · full-text search.
+location reminders · time tracking · server-side full-text search (search runs
+over the in-memory working set: everything open and the last month of done).

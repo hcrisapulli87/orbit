@@ -76,6 +76,28 @@ export default function Help() {
       </div>
 
       <div className="card">
+        <h2>Ticking, moving and taking it back</h2>
+        <Rows
+          rows={[
+            ['Swipe a task right', 'Done. Swipe a finished one right to reopen it.'],
+            ['Swipe a task left', 'Moves it to tomorrow. On a repeat, only this one moves.'],
+            ['Undo', 'Ticking, moving, deleting and rescheduling all leave a note at the bottom of the screen for a few seconds. Tap Undo there to put it back.'],
+            ['Overdue', 'The banner on Today moves everything overdue to today or tomorrow in one tap. A missed repeat whose next one is already waiting is skipped instead, so it doesn’t turn up twice.'],
+          ]}
+        />
+      </div>
+
+      <div className="card">
+        <h2>Finding things, and what’s done</h2>
+        <Rows
+          rows={[
+            ['Search', 'The magnifying glass on Today, or press / on a keyboard. Every word has to match a title, note, #tag or project, and a repeating task shows up once.'],
+            ['Logbook', 'Everything you’ve finished, by the day you did it. Reach it from the Done card on Today. The last month is live; “Show earlier” goes back further.'],
+          ]}
+        />
+      </div>
+
+      <div className="card">
         <h2>The calendar, and blocking out time</h2>
         <Rows
           rows={[

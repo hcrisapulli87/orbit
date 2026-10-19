@@ -1,6 +1,6 @@
 // The line-icon set.
 //
-// Seven glyphs, one 24px grid, drawn in currentColor. Emoji couldn't do that:
+// One 24px grid, drawn in currentColor. Emoji couldn't do that:
 // they carry their own colour, so a tab bar of them stays amber-and-violet no
 // matter which palette is on, and they render as four different sets of
 // artwork across Windows, iOS, Android and a Mac.
@@ -34,6 +34,10 @@ const PATHS = {
   templates: 'M12 3l8.5 4.75L12 12.5 3.5 7.75z M3.5 12.25L12 17l8.5-4.75 M3.5 16.5L12 21.25l8.5-4.75',
   // struck-through circle: the thing you asked for isn't here
   missing: 'M12 21.2a9.2 9.2 0 1 0 0-18.4 9.2 9.2 0 0 0 0 18.4z M8.5 8.5l7 7',
+  // a lens and its handle
+  search: 'M10.5 17.5a7 7 0 1 0 0-14 7 7 0 0 0 0 14z M15.6 15.6L20.5 20.5',
+  // a ticked box: the pile of things already finished
+  logbook: 'M5 4.5h14a1.5 1.5 0 0 1 1.5 1.5v12a1.5 1.5 0 0 1-1.5 1.5H5A1.5 1.5 0 0 1 3.5 18V6A1.5 1.5 0 0 1 5 4.5z M8 12.2l2.7 2.7L16.2 9.4',
   // a question mark in a ring, at the same weight as the rest
   help:
     'M12 21.2a9.2 9.2 0 1 0 0-18.4 9.2 9.2 0 0 0 0 18.4z ' +

@@ -1,22 +1,26 @@
-import { createContext, useCallback, useContext, useEffect, useState } from 'react'
+import { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
 import { useAuth } from '../auth/AuthProvider'
 import { todayISO } from '../domain/day'
 import { createArea, fetchAreas, updateArea } from './areas'
 import { archiveProject, createProject, fetchProjects, updateProject } from './projects'
-import { createTask, deleteTask, fetchTasks, setTaskDone, updateTask } from './tasks'
+import {
+  createTask, deleteTask, fetchTasks, restoreTasks, setTaskDone, updateTask, updateTasks,
+} from './tasks'
 import {
   adoptAsFirstOccurrence, advanceAfterCompletion, createSeries, deleteSeries, ensureOccurrences,
-  fetchSeries, propagateToFuture, pruneStaleOccurrences, ruleOf, updateSeries,
+  fetchSeries, propagateToFuture, pruneStaleOccurrences, retractAfterCompletion, ruleOf, updateSeries,
 } from './series'
 import { nextAfterCompletion } from '../domain/recurrence'
 import { DEFAULT_SETTINGS, fetchSettings, updateSettings } from './settings'
 import {
-  clearPlannerBlocks, createBlock, deleteBlock, fetchBlocks, replacePlannerBlocks, updateBlock,
+  clearPlannerBlocks, createBlock, deleteBlock, fetchBlocks, replacePlannerBlocks, restoreBlocks,
+  updateBlock,
 } from './blocks'
 import { fetchTemplateItems, fetchTemplates } from './templates'
 import { suggestBlocks } from '../domain/planner'
-import { minutesToTime, parseTimeToMinutes } from '../domain/day'
+import { planReschedule } from '../domain/reschedule'
+import { minutesToTime, parseTimeToMinutes, relativeLabel } from '../domain/day'
 import { useRealtime } from './useRealtime'
 import { applyAppearance, storeAppearance } from '../lib/appearance'
 import type {
@@ -49,11 +53,38 @@ interface DataContextValue {
   toggleTask: (task: Task) => Promise<void>
   patchTask: (id: string, patch: Partial<Task>) => Promise<void>
   removeTask: (id: string) => Promise<void>
+  snoozeTask: (task: Task, date: string) => Promise<void>
+  rescheduleOverdue: (overdue: Task[], date: string) => Promise<void>
+  toast: Toast | null
+  dismissToast: () => void
+  undoToast: () => Promise<void>
   addProject: (project: Parameters<typeof createProject>[1]) => Promise<Project | null>
   patchProject: (id: string, patch: Partial<Project>) => Promise<void>
   removeProject: (id: string) => Promise<void>
   addArea: (area: Parameters<typeof createArea>[1]) => Promise<Area | null>
   patchArea: (id: string, patch: Partial<Area>) => Promise<void>
+}
+
+/**
+ * A one-line note at the bottom of the screen, usually with a way back.
+ *
+ * Every write in Orbit is optimistic and instant, which is what makes a
+ * mis-tap expensive: the thing is already gone. The toast is the other half of
+ * that bargain — a few seconds in which the last change can be taken back.
+ */
+export interface Toast {
+  id: number
+  message: string
+  undo?: () => Promise<void>
+}
+
+/** Long enough to notice and reach for, short enough not to linger over the dock. */
+const TOAST_MS = 6000
+
+/** "today", "tomorrow", "Friday", "3 Aug" — a day as it reads mid-sentence. */
+function inSentence(date: string): string {
+  const label = relativeLabel(date, todayISO())
+  return label === 'Today' || label === 'Tomorrow' ? label.toLowerCase() : label
 }
 
 const DataContext = createContext<DataContextValue | undefined>(undefined)
@@ -74,6 +105,21 @@ export function DataProvider({ children }: { children: ReactNode }) {
   const [settings, setSettings] = useState(DEFAULT_SETTINGS)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
+  const [toast, setToast] = useState<Toast | null>(null)
+  const toastSeq = useRef(0)
+
+  const showToast = useCallback((message: string, undo?: () => Promise<void>) => {
+    setToast({ id: ++toastSeq.current, message, undo })
+  }, [])
+  const dismissToast = useCallback(() => setToast(null), [])
+
+  // Keyed on the id, so a second toast restarts the clock rather than being
+  // cut short by the first one's timer.
+  useEffect(() => {
+    if (!toast) return
+    const timer = window.setTimeout(() => setToast(null), TOAST_MS)
+    return () => window.clearTimeout(timer)
+  }, [toast])
 
   const reload = useCallback(() => {
     Promise.all([
@@ -101,6 +147,21 @@ export function DataProvider({ children }: { children: ReactNode }) {
   }, [])
 
   useEffect(reload, [reload])
+
+  // One place to run an undo, so every one of them fails the same way: say
+  // so, and resync from the server rather than leave a half-restored screen.
+  const undoToast = useCallback(async () => {
+    const undo = toast?.undo
+    setToast(null)
+    if (!undo) return
+    try {
+      await undo()
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : 'Could not undo that')
+      reload()
+    }
+  }, [toast, reload])
+
   useRealtime(TABLES, reload)
 
   // The appearance follows the settings row, whether it changed here, on the
@@ -158,17 +219,100 @@ export function DataProvider({ children }: { children: ReactNode }) {
         // a calendar date. The completed row stays as history, which is the
         // record maintenance_tracker.py never kept.
         const parent = task.series_id ? series.find((s) => s.id === task.series_id) : undefined
+        let next: string | null = null
         if (done && parent?.rule_type === 'after_completion') {
-          const next = nextAfterCompletion(ruleOf(parent), today)
+          next = nextAfterCompletion(ruleOf(parent), today)
           if (next) await advanceAfterCompletion(parent, next)
           reload()
+        }
+
+        // Unticking is its own undo, so only a tick earns the toast. Taking it
+        // back has to retract the next occurrence the tick just created, or
+        // the car service would come round twice.
+        if (done) {
+          showToast(`Done: ${task.title}`, async () => {
+            setTasks((prev) =>
+              prev.map((t) =>
+                t.id === task.id ? { ...t, status: 'open', completed_at: null, completed_on: null } : t,
+              ),
+            )
+            await setTaskDone(task.id, false)
+            if (parent && next) await retractAfterCompletion(parent.id, next)
+            reload()
+          })
         }
       } catch (e: unknown) {
         setError(e instanceof Error ? e.message : 'Could not save that')
         reload()
       }
     },
-    [reload, series],
+    [reload, series, showToast],
+  )
+
+  /**
+   * Push one task to another day — the swipe-left on a row. Only this task
+   * moves: on a repeat it's this occurrence, never the rule.
+   */
+  const snoozeTask = useCallback(
+    async (task: Task, date: string) => {
+      const before = task.due_on
+      setTasks((prev) => prev.map((t) => (t.id === task.id ? { ...t, due_on: date } : t)))
+      try {
+        await updateTask(task.id, { due_on: date })
+        showToast(`Moved to ${inSentence(date)}: ${task.title}`, async () => {
+          setTasks((prev) => prev.map((t) => (t.id === task.id ? { ...t, due_on: before } : t)))
+          await updateTask(task.id, { due_on: before })
+        })
+      } catch (e: unknown) {
+        setError(e instanceof Error ? e.message : 'Could not move that')
+        reload()
+      }
+    },
+    [reload, showToast],
+  )
+
+  /**
+   * Clear the overdue pile in one go. One-off work moves to `date`; a missed
+   * repeat whose next occurrence is already waiting is marked dropped instead
+   * of being stacked on top of it (see domain/reschedule.ts). Undo puts every
+   * row back the way it was.
+   */
+  const rescheduleOverdue = useCallback(
+    async (overdue: Task[], date: string) => {
+      const { move, skip } = planReschedule(overdue, tasks, todayISO())
+      if (move.length + skip.length === 0) return
+      const moveIds = new Set(move.map((t) => t.id))
+      const skipIds = new Set(skip.map((t) => t.id))
+      const before = [...move, ...skip].map((t) => ({ id: t.id, due_on: t.due_on, status: t.status }))
+
+      setTasks((prev) =>
+        prev.map((t) =>
+          moveIds.has(t.id) ? { ...t, due_on: date }
+          : skipIds.has(t.id) ? { ...t, status: 'dropped' }
+          : t,
+        ),
+      )
+      try {
+        await updateTasks([...moveIds], { due_on: date })
+        await updateTasks([...skipIds], { status: 'dropped' })
+
+        const when = inSentence(date)
+        const parts = [
+          move.length > 0 && `Moved ${move.length} to ${when}`,
+          skip.length > 0 && `skipped ${skip.length} missed repeat${skip.length === 1 ? '' : 's'}`,
+        ].filter(Boolean)
+        const message = parts.join(', ')
+        showToast(message.charAt(0).toUpperCase() + message.slice(1), async () => {
+          const byId = new Map(before.map((b) => [b.id, b]))
+          setTasks((prev) => prev.map((t) => (byId.has(t.id) ? { ...t, ...byId.get(t.id)! } : t)))
+          await Promise.all(before.map((b) => updateTask(b.id, { due_on: b.due_on, status: b.status })))
+        })
+      } catch (e: unknown) {
+        setError(e instanceof Error ? e.message : 'Could not move those')
+        reload()
+      }
+    },
+    [tasks, reload, showToast],
   )
 
   // A rule, not a task. Its first occurrences are materialised immediately so
@@ -482,17 +626,30 @@ export function DataProvider({ children }: { children: ReactNode }) {
 
   const removeTask = useCallback(
     async (id: string) => {
-      // Subtasks cascade in the database, so removing a parent takes its
-      // children with it — the row disappears from local state either way.
-      setTasks((prev) => prev.filter((t) => t.id !== id && t.parent_id !== id))
+      // Subtasks and blocks cascade in the database, so removing a parent
+      // takes its children with it. They're snapshotted first so undo can put
+      // every row back with the ids it had — parent before children.
+      const gone = tasks.filter((t) => t.id === id || t.parent_id === id)
+      const goneIds = new Set(gone.map((t) => t.id))
+      const goneBlocks = blocks.filter((b) => b.task_id !== null && goneIds.has(b.task_id))
+      const title = gone.find((t) => t.id === id)?.title ?? 'task'
+
+      setTasks((prev) => prev.filter((t) => !goneIds.has(t.id)))
+      setBlocks((prev) => prev.filter((b) => !goneBlocks.includes(b)))
       try {
         await deleteTask(id)
+        showToast(`Deleted: ${title}`, async () => {
+          const ordered = [...gone].sort((a, b) => Number(a.id !== id) - Number(b.id !== id))
+          await restoreTasks(ordered)
+          await restoreBlocks(goneBlocks)
+          reload()
+        })
       } catch (e: unknown) {
         setError(e instanceof Error ? e.message : 'Could not delete that')
         reload()
       }
     },
-    [reload],
+    [tasks, blocks, reload, showToast],
   )
 
   return (
@@ -501,7 +658,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
         areas, projects, tasks, series, blocks, templates, templateItems,
         settings, loading, error, reload,
         addTask, addSeries, patchSeries, removeSeries, makeRecurring,
-        toggleTask, patchTask, removeTask,
+        toggleTask, patchTask, removeTask, snoozeTask, rescheduleOverdue, toast, dismissToast, undoToast,
         addProject, patchProject, removeProject, addArea, patchArea,
         saveSettings, addBlock, patchBlock, removeBlock, planDay, clearPlan,
       }}

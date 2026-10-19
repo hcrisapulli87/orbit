@@ -233,3 +233,18 @@ export async function advanceAfterCompletion(series: Series, nextDue: string): P
     })
   if (error) throw error
 }
+
+/**
+ * Undo advanceAfterCompletion: remove the occurrence that ticking created, as
+ * long as it's still untouched. Without this, undoing the tick on a car service
+ * would leave next March's service behind as well as reopening this one.
+ */
+export async function retractAfterCompletion(seriesId: string, occurrenceKey: string): Promise<void> {
+  const { error } = await supabase
+    .from('task_tasks')
+    .delete()
+    .eq('series_id', seriesId)
+    .eq('occurrence_key', occurrenceKey)
+    .eq('status', 'open')
+  if (error) throw error
+}

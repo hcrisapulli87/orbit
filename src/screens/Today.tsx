@@ -9,7 +9,9 @@ import { useData } from '../data/DataProvider'
 import { buildToday } from '../domain/planner'
 import { collapsesSections, usesSpine } from '../domain/appearance'
 import { relativeLabel, todayISO, weekdayOf } from '../domain/day'
+import { weekTally } from '../domain/logbook'
 import TodaySpine from './TodaySpine'
+import { DoneCard, OverdueBanner } from '../components/TodayCards'
 import type { Block, Task } from '../data/types'
 
 const WEEKDAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']
@@ -22,7 +24,7 @@ const hours = (min: number) =>
   min >= 60 ? `${Math.floor(min / 60)}h${min % 60 ? ` ${min % 60}m` : ''}` : `${min}m`
 
 export default function Today() {
-  const { tasks, series, blocks, settings, error, planDay, clearPlan } = useData()
+  const { tasks, series, blocks, settings, error, planDay, clearPlan, rescheduleOverdue } = useData()
   const today = todayISO()
   const todayBlocks = blocks.filter((b) => b.on_date === today)
   const [editing, setEditing] = useState<Block | null>(null)
@@ -52,6 +54,8 @@ export default function Today() {
     return <TodaySpine plan={plan} blocks={todayBlocks} doneToday={doneToday} />
   }
 
+  const { thisWeek } = weekTally(tasks, today)
+
   // Terrain shows only what must happen; Should and If-there's-time fold behind
   // a summary line. It's a prop on the section, not a second screen.
   const collapse = collapsesSections(settings.ui_theme)
@@ -63,6 +67,9 @@ export default function Today() {
         sub={relativeLabel(today, today)}
         action={
           <span className="row">
+            <Link className="gear" to="/search" aria-label="Search">
+              <Icon name="search" />
+            </Link>
             <Link className="gear" to="/help" aria-label="How Orbit works">
               <Icon name="help" />
             </Link>
@@ -75,10 +82,11 @@ export default function Today() {
       {error && <p className="error">{error}</p>}
 
       {plan.overdue.length > 0 && (
-        <div className="banner">
-          <strong>{plan.overdue.length} overdue</strong>
-          <span className="muted"> — oldest first below</span>
-        </div>
+        <OverdueBanner
+          count={plan.overdue.length}
+          note="oldest first below"
+          onMove={(date) => void rescheduleOverdue(plan.overdue, date)}
+        />
       )}
 
       {/* The capacity bar is a statement of fact, not a nag: when the day
@@ -195,13 +203,10 @@ export default function Today() {
         collapsed={collapse}
       />
 
-      {doneToday.length > 0 && (
-        <div className="card">
-          <h2>Done today</h2>
-          {doneToday.map((t) => (
-            <TaskRow key={t.id} task={t} />
-          ))}
-        </div>
+      {/* Shown from the first tick of the week, so the Logbook is always a
+          tap away — even on a morning when nothing is done yet. */}
+      {(doneToday.length > 0 || thisWeek > 0) && (
+        <DoneCard doneToday={doneToday} thisWeek={thisWeek} />
       )}
     </main>
   )

@@ -59,6 +59,46 @@ export async function deleteTask(id: string): Promise<void> {
   if (error) throw error
 }
 
+/** The same patch onto many rows in one round trip — rescheduling a pile of overdue work. */
+export async function updateTasks(ids: string[], patch: Partial<Task>): Promise<void> {
+  if (ids.length === 0) return
+  const { error } = await supabase.from('task_tasks').update(patch).in('id', ids)
+  if (error) throw error
+}
+
+/**
+ * Put deleted rows back exactly as they were, ids and all, so anything that
+ * pointed at them — a subtask's parent_id, a link in a notification — points
+ * at the same thing again. Parents must come before their children.
+ */
+export async function restoreTasks(rows: Task[]): Promise<void> {
+  if (rows.length === 0) return
+  const { error } = await supabase.from('task_tasks').upsert(rows, { onConflict: 'id' })
+  if (error) throw error
+}
+
+/** Where the Logbook's first server page starts: the day before the working set's window. */
+export function historyCursor(today = todayISO()): string {
+  return addDays(today, -COMPLETED_WINDOW_DAYS - 1)
+}
+
+/**
+ * One page of completions on or before `through`, newest first. The Logbook
+ * trims the page to whole days (domain/logbook.ts) before showing it.
+ */
+export async function fetchCompletedThrough(through: string, limit: number): Promise<Task[]> {
+  const { data, error } = await supabase
+    .from('task_tasks')
+    .select('*')
+    .eq('status', 'done')
+    .lte('completed_on', through)
+    .order('completed_on', { ascending: false })
+    .order('completed_at', { ascending: false })
+    .limit(limit)
+  if (error) throw error
+  return data ?? []
+}
+
 /**
  * The Inbox is the absence of triage, not a flag — an open, undated task with no
  * project and no area. Deriving it means filing something can never leave a

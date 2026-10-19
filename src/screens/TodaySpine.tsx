@@ -8,6 +8,8 @@ import type { TimedEntry } from '../components/calendar/DayColumn'
 import { layoutTimedItems, visibleWindow } from '../domain/calendarGrid'
 import { useData } from '../data/DataProvider'
 import { formatTime, minutesToTime, parseTimeToMinutes, relativeLabel, todayISO, weekdayOf } from '../domain/day'
+import { weekTally } from '../domain/logbook'
+import { DoneCard, OverdueBanner } from '../components/TodayCards'
 import type { TodayPlan } from '../domain/planner'
 import type { Block, Task } from '../data/types'
 
@@ -33,8 +35,9 @@ export default function TodaySpine({
   blocks: Block[]
   doneToday: Task[]
 }) {
-  const { tasks, settings, error } = useData()
+  const { tasks, settings, error, rescheduleOverdue } = useData()
   const today = todayISO()
+  const { thisWeek } = weekTally(tasks, today)
 
   const dayStart = parseTimeToMinutes(settings.day_start) ?? 480
   const dayEnd = parseTimeToMinutes(settings.day_end) ?? 1260
@@ -89,18 +92,24 @@ export default function TodaySpine({
         title={WEEKDAYS[weekdayOf(today)]}
         sub={relativeLabel(today, today)}
         action={
-          <Link className="gear" to="/settings" aria-label="Settings">
-            <Icon name="gear" />
-          </Link>
+          <span className="row">
+            <Link className="gear" to="/search" aria-label="Search">
+              <Icon name="search" />
+            </Link>
+            <Link className="gear" to="/settings" aria-label="Settings">
+              <Icon name="gear" />
+            </Link>
+          </span>
         }
       />
       {error && <p className="error">{error}</p>}
 
       {plan.overdue.length > 0 && (
-        <div className="banner">
-          <strong>{plan.overdue.length} overdue</strong>
-          <span className="muted"> — below the rail</span>
-        </div>
+        <OverdueBanner
+          count={plan.overdue.length}
+          note="below the rail"
+          onMove={(date) => void rescheduleOverdue(plan.overdue, date)}
+        />
       )}
 
       <div className="card">
@@ -173,13 +182,8 @@ export default function TodaySpine({
         </div>
       )}
 
-      {doneToday.length > 0 && (
-        <div className="card">
-          <h2>Done today</h2>
-          {doneToday.map((t) => (
-            <TaskRow key={t.id} task={t} />
-          ))}
-        </div>
+      {(doneToday.length > 0 || thisWeek > 0) && (
+        <DoneCard doneToday={doneToday} thisWeek={thisWeek} />
       )}
 
       {onClock.length === 0 &&

@@ -545,12 +545,33 @@ body::before {
 }
 .ico--sm { width: 18px; height: 18px; }
 
-/* ---- task rows ---- */
+/* ---- task rows ----
+   The hairline lives on the .swipe wrapper rather than the row, because the
+   row is the part that slides: a border on it would travel with the finger. */
+.swipe {
+  position: relative; touch-action: pan-y; overflow-x: clip;
+  border-bottom: 1px solid var(--hairline);
+}
+.swipe:last-child { border-bottom: 0; }
 .task-row {
   display: flex; align-items: flex-start; gap: 12px;
-  padding: var(--row-pad) 0; border-bottom: 1px solid var(--hairline);
+  padding: var(--row-pad) 0;
+  transition: transform var(--motion) ease;
 }
-.task-row:last-child { border-bottom: 0; }
+/* Follows the finger exactly while held, and gets a solid fill so the action
+   underneath shows only where the row has moved off it. */
+.task-row--dragging { transition: none; background: var(--surface-solid); }
+
+/* What letting go will do, revealed under the row. Faint until the row has
+   travelled far enough, then full strength — that change is the signal. */
+.swipe__under {
+  position: absolute; inset: 0; display: flex; align-items: center;
+  padding: 0 12px; font-size: 0.75rem; font-weight: 800; letter-spacing: 0.02em;
+  opacity: 0.55; transition: opacity var(--motion) ease;
+}
+.swipe__under--right { justify-content: flex-start; background: var(--mark-done); color: var(--mark-done-ink); }
+.swipe__under--left { justify-content: flex-end; background: var(--warn-fill); color: var(--warn-ink); }
+.swipe__under--armed { opacity: 1; }
 .task-row__body { flex: 1; min-width: 0; }
 .task-row__title {
   display: block; margin: 0; font-weight: 600; overflow-wrap: anywhere;
@@ -727,7 +748,7 @@ button.daycol__item {
 .blockrow {
   width: 100%; display: flex; align-items: baseline; gap: 10px; padding: 10px 0;
   border: 0; border-bottom: 1px solid var(--hairline); background: none;
-  color: var(--ink); font: inherit; text-align: left; cursor: pointer;
+  color: var(--ink); font: inherit; text-align: left; cursor: pointer; text-decoration: none;
 }
 .blockrow:last-of-type { border-bottom: 0; }
 .blockrow:active { opacity: 0.6; }
@@ -755,6 +776,7 @@ button.daycol__item {
   border-radius: var(--radius-sm); padding: 10px 14px; margin-bottom: 14px;
   color: var(--danger-strong); font-size: 0.9rem;
 }
+.banner__actions { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
 .meter { height: 8px; border-radius: 999px; background: var(--track); overflow: hidden; }
 .meter__fill { height: 100%; background: var(--mark-grad); border-radius: 999px; }
 .meter__fill--over { background: var(--grad-over); }
@@ -824,6 +846,8 @@ code {
   min-height: 32px; padding: 4px 12px;
 }
 .chip--action:active { transform: scale(0.96); }
+/* The same pill as a link, e.g. Today's way into the Logbook. */
+a.chip--action { text-decoration: none; }
 
 /* ---- capture bar: the only way to create a task ---- */
 /* Positioned by .dock — it only has to say how wide it is. */
@@ -869,6 +893,37 @@ code {
   padding: calc(6px + env(safe-area-inset-top)) 12px 6px;
   background: var(--warn-fill); color: var(--warn-ink);
   font-size: 0.78rem; font-weight: 700; text-align: center;
+}
+
+/* ---- undo toast ----
+   Floats just above the measured dock rather than living inside it, so its
+   coming and going never changes --dock-h under every screen. */
+.toast-region {
+  position: fixed; left: 0; right: 0; bottom: calc(var(--dock-h) + 10px); z-index: 50;
+  display: flex; justify-content: center; padding: 0 12px; pointer-events: none;
+}
+.toast {
+  pointer-events: auto; width: min(440px, 100%);
+  display: flex; align-items: center; gap: 4px;
+  padding: 4px 4px 4px 16px; border-radius: var(--radius-sm);
+  background: var(--panel); color: var(--ink); border: 1px solid var(--border);
+  box-shadow: var(--shadow);
+  backdrop-filter: var(--blur); -webkit-backdrop-filter: var(--blur);
+  animation: toast-in var(--motion) ease-out;
+}
+.toast__msg {
+  flex: 1; min-width: 0; font-size: 0.85rem; font-weight: 600;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.toast__undo, .toast__close {
+  min-height: var(--tap); padding: 0 12px; border: 0; background: none;
+  font: inherit; cursor: pointer; flex-shrink: 0;
+}
+.toast__undo { color: var(--accent-text); font-weight: 800; }
+.toast__close { color: var(--dim); min-width: var(--tap); padding: 0; }
+@keyframes toast-in {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: none; }
 }
 
 /* ---- loading / empty ---- */

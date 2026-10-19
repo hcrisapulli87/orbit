@@ -20,6 +20,13 @@ export async function fetchBlocks(today = todayISO()): Promise<Block[]> {
   return data ?? []
 }
 
+/** Put back blocks that went with a deleted task, ids and all. */
+export async function restoreBlocks(rows: Block[]): Promise<void> {
+  if (rows.length === 0) return
+  const { error } = await supabase.from('task_blocks').upsert(rows, { onConflict: 'id' })
+  if (error) throw error
+}
+
 export async function createBlock(
   ownerId: string,
   block: Omit<Block, 'id' | 'owner_id' | 'created_at'>,
