@@ -27,7 +27,7 @@ import {
 } from './calendars'
 import { useCalendarFeeds } from './useCalendarFeeds'
 import type { CalendarSlice, FeedStatus } from './useCalendarFeeds'
-import { suggestBlocks } from '../domain/planner'
+import { nextQuarter, splitForReplan, suggestBlocks } from '../domain/planner'
 import type { Interval } from '../domain/planner'
 import { planReschedule } from '../domain/reschedule'
 import { minutesToTime, parseTimeToMinutes, relativeLabel } from '../domain/day'
@@ -61,7 +61,8 @@ interface DataContextValue {
   addBlock: (block: Omit<Block, 'id' | 'owner_id' | 'created_at'>) => Promise<void>
   patchBlock: (id: string, patch: Partial<Block>) => Promise<void>
   removeBlock: (id: string) => Promise<void>
-  planDay: (date: string) => Promise<void>
+  /** `fromMin` re-plans the rest of the day from that minute, keeping what's already done. */
+  planDay: (date: string, fromMin?: number) => Promise<void>
   clearPlan: (date: string) => Promise<void>
   addTask: (task: NewTask) => Promise<void>
   addSeries: (series: NewSeries) => Promise<void>
@@ -681,11 +682,28 @@ export function DataProvider({ children }: { children: ReactNode }) {
    * or to `alreadyBlocked` here.
    */
   const planDay = useCallback(
-    async (date: string) => {
+    async (date: string, fromMin?: number) => {
       if (!user) return
       try {
         const dayBlocks = blocks.filter((b) => b.on_date === date)
         const manual = dayBlocks.filter((b) => b.source === 'manual')
+
+        // A re-plan keeps the auto-plan's finished blocks as the record of the
+        // day and plans everything else again from now: what slipped, and
+        // what hadn't started yet. A first plan keeps nothing.
+        const placed = dayBlocks
+          .filter((b) => b.source === 'planner' && !b.all_day)
+          .map((b) => ({
+            block: b,
+            taskId: b.task_id,
+            startMin: parseTimeToMinutes(b.start_time) ?? 0,
+            endMin: parseTimeToMinutes(b.end_time) ?? 0,
+          }))
+        const kept = fromMin === undefined ? [] : splitForReplan(
+          placed,
+          (id) => tasks.some((t) => t.id === id && t.status === 'open'),
+          fromMin,
+        ).kept
 
         const busy = [
           ...manual.flatMap((b) => {
@@ -697,30 +715,37 @@ export function DataProvider({ children }: { children: ReactNode }) {
           // reason for reading the calendar at all is so a task is never
           // planned on top of one.
           ...busySlices(calendarSlices, date),
+          ...kept.map((k) => ({ start: k.startMin, end: k.endMin })),
         ]
+        const settingsStart = parseTimeToMinutes(settings.day_start) ?? 480
 
         const suggestions = suggestBlocks(tasks, {
           today: date,
-          dayStartMin: parseTimeToMinutes(settings.day_start) ?? 480,
+          dayStartMin: fromMin === undefined ? settingsStart : Math.max(settingsStart, nextQuarter(fromMin)),
           dayEndMin: parseTimeToMinutes(settings.day_end) ?? 1260,
           busy,
-          alreadyBlocked: manual
-            .map((b) => b.task_id)
+          alreadyBlocked: [...manual.map((b) => b.task_id), ...kept.map((k) => k.taskId)]
             .filter((id): id is string => id !== null),
         })
 
         await replacePlannerBlocks(
           user.id,
           date,
-          suggestions.map((s) => ({
-            on_date: date,
-            start_time: minutesToTime(s.startMin),
-            end_time: minutesToTime(s.endMin),
-            task_id: s.taskId,
-            label: '',
-            source: 'planner' as const,
-            all_day: false,
-          })),
+          [
+            ...kept.map(({ block }) => ({
+              on_date: block.on_date, start_time: block.start_time, end_time: block.end_time,
+              task_id: block.task_id, label: block.label, source: 'planner' as const, all_day: false,
+            })),
+            ...suggestions.map((s) => ({
+              on_date: date,
+              start_time: minutesToTime(s.startMin),
+              end_time: minutesToTime(s.endMin),
+              task_id: s.taskId,
+              label: '',
+              source: 'planner' as const,
+              all_day: false,
+            })),
+          ],
         )
         reload()
       } catch (e: unknown) {

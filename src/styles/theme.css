@@ -804,6 +804,12 @@ button.daycol__item {
 .review-bar__fill { display: block; height: 100%; border-radius: 999px; background: var(--mark-grad); }
 .review-bar__fill--over { background: var(--grad-over); }
 
+/* The day ran late: a quiet note and one button, inside the Blocked out card. */
+.slipped {
+  display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px;
+  margin-top: 10px; padding: 10px 12px; border-radius: var(--radius-sm); background: var(--inner);
+}
+
 .banner__actions { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
 .meter { height: 8px; border-radius: 999px; background: var(--track); overflow: hidden; }
 .meter__fill { height: 100%; background: var(--mark-grad); border-radius: 999px; }

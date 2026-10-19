@@ -4,6 +4,8 @@ import {
   buildToday,
   defaultEstimateFor,
   freeMinutes,
+  nextQuarter,
+  splitForReplan,
   isDeferred,
   scoreTask,
   suggestBlocks,
@@ -418,5 +420,27 @@ describe('freeMinutes', () => {
 
   it('never goes below zero', () => {
     expect(freeMinutes(480, 1020, [{ start: 0, end: 1440 }])).toBe(0)
+  })
+})
+
+describe('splitForReplan', () => {
+  const block = (taskId: string | null, startMin: number, endMin: number) => ({ taskId, startMin, endMin })
+  const open = new Set(['late'])
+
+  it('keeps finished blocks, flags slipped ones, leaves the rest to be planned again', () => {
+    const done = block('ticked', 540, 570)
+    const slipped = block('late', 570, 600)
+    const later = block('late', 700, 730)
+    const label = block(null, 480, 510)
+    const out = splitForReplan([done, slipped, later, label], (id) => open.has(id), 620)
+    expect(out.kept).toEqual([done, label])
+    expect(out.slipped).toEqual([slipped])
+  })
+})
+
+describe('nextQuarter', () => {
+  it('rounds up to fifteen minutes', () => {
+    expect(nextQuarter(14 * 60 + 7)).toBe(14 * 60 + 15)
+    expect(nextQuarter(14 * 60)).toBe(14 * 60)
   })
 })

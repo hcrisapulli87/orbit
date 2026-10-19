@@ -316,3 +316,39 @@ export function freeMinutes(dayStartMin: number, dayEndMin: number, busy: Interv
   }
   return Math.max(0, dayEndMin - dayStartMin - taken)
 }
+
+/** The parts of a placed block the re-plan reads. */
+export interface PlacedBlock {
+  taskId: string | null
+  startMin: number
+  endMin: number
+}
+
+/**
+ * Sort the auto-plan's own blocks for a re-plan from `nowMin`.
+ *
+ * `kept` are over and done with — their task was ticked, or they held no
+ * task — and stay on the calendar as a record of the day. `slipped` are over
+ * but their task is still open: the day ran late, and those are what the
+ * re-plan exists to find a new place for. Anything not yet over is neither,
+ * and is simply planned again from now along with everything else.
+ */
+export function splitForReplan<B extends PlacedBlock>(
+  plannerBlocks: B[],
+  isOpen: (taskId: string) => boolean,
+  nowMin: number,
+): { kept: B[]; slipped: B[] } {
+  const kept: B[] = []
+  const slipped: B[] = []
+  for (const b of plannerBlocks) {
+    if (b.endMin > nowMin) continue
+    if (b.taskId !== null && isOpen(b.taskId)) slipped.push(b)
+    else kept.push(b)
+  }
+  return { kept, slipped }
+}
+
+/** Round up to the next quarter hour, so a re-plan at 2:07 starts at 2:15. */
+export function nextQuarter(min: number): number {
+  return Math.ceil(min / 15) * 15
+}

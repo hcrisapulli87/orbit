@@ -20,7 +20,8 @@ screen.
   one grid. Tap an empty half-hour to name an event, invent a task or hold the
   slot for something already on the list; tap anything on the grid to edit it,
   or hold and drag it to a new time. "Auto-plan my day" pins today's timed work
-  where you put it and fills the gaps around it.
+  where you put it and fills the gaps around it. When the day runs late, it offers to
+  re-plan from now, keeping what's done.
 - **Recurrence that actually covers real life.** Every Tuesday, every second
   Tuesday, last day of the month, second Tuesday of the month, yearly — and
   "six months after I last did it", for the car service. Editable after the

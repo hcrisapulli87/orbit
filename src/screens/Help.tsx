@@ -155,6 +155,12 @@ export default function Help() {
           survives. Edit a suggestion and it becomes yours — the next auto-plan
           will leave it alone.
         </p>
+        <p className="hint">
+          When the day runs late and a suggested block goes by with its task
+          still open, Today says so and offers to re-plan from now. Blocks you
+          finished stay where they were; everything else moves after the
+          current time, around your meetings.
+        </p>
       </div>
 
       <div className="card">

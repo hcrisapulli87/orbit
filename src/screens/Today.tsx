@@ -8,9 +8,9 @@ import { BlockSheet, blockRange } from '../components/calendar/BlockSheet'
 import { useData } from '../data/DataProvider'
 import { useDayCapacity } from '../data/useDayCapacity'
 import { EventList } from '../components/calendar/EventList'
-import { buildToday } from '../domain/planner'
+import { buildToday, splitForReplan } from '../domain/planner'
 import { collapsesSections, usesSpine } from '../domain/appearance'
-import { parseTimeToMinutes, relativeLabel, todayISO, weekdayOf } from '../domain/day'
+import { formatTime, minutesToTime, parseTimeToMinutes, relativeLabel, todayISO, weekdayOf } from '../domain/day'
 import { weekTally } from '../domain/logbook'
 import TodaySpine from './TodaySpine'
 import { DoneCard, OverdueBanner, ReviewPrompts } from '../components/TodayCards'
@@ -63,6 +63,24 @@ export default function Today() {
   }
 
   const { thisWeek } = weekTally(tasks, today)
+
+  // Suggested blocks whose time has passed with the task still open: the day
+  // ran late. Counted, not acted on — re-planning is offered, never imposed.
+  const now = new Date()
+  const nowMin = now.getHours() * 60 + now.getMinutes()
+  const { slipped } = splitForReplan(
+    todayBlocks
+      .filter((b) => b.source === 'planner' && !b.all_day)
+      .map((b) => ({
+        taskId: b.task_id,
+        startMin: parseTimeToMinutes(b.start_time) ?? 0,
+        endMin: parseTimeToMinutes(b.end_time) ?? 0,
+      })),
+    // A task pinned to a time is placed there by every plan — a re-plan can't
+    // move it, so it isn't offered as something that slipped.
+    (id) => tasks.some((t) => t.id === id && t.status === 'open' && !(t.due_on === today && t.due_time)),
+    nowMin,
+  )
 
   // Terrain shows only what must happen; Should and If-there's-time fold behind
   // a summary line. It's a prop on the section, not a second screen.
@@ -147,6 +165,17 @@ export default function Today() {
               {b.source === 'planner' && <span className="muted">suggested</span>}
             </button>
           ))}
+          {slipped.length > 0 && (
+            <div className="slipped">
+              <p className="hint" style={{ margin: 0 }}>
+                {slipped.length === 1 ? 'One suggested block' : `${slipped.length} suggested blocks`} went
+                by without being done.
+              </p>
+              <button className="btn btn--small" onClick={() => void planDay(today, nowMin)}>
+                Re-plan from {formatTime(minutesToTime(Math.ceil(nowMin / 15) * 15))}
+              </button>
+            </div>
+          )}
           {todayBlocks.some((b) => b.source === 'planner') && (
             <button
               className="btn btn--small"
