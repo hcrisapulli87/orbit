@@ -38,6 +38,10 @@ screen.
   clear by auto-plan. Repeat rules, exceptions, moved occurrences and time
   zones are read in the browser (`domain/ical.ts`); the `calendar-feed` Edge
   Function only relays the text, because the providers send no CORS headers.
+- **Capture works offline.** Anything added without a connection is queued on
+  the device with the id it will keep, shown with a *waiting to save* chip,
+  and sent in order when the connection returns — safely, if it's sent twice.
+  Edits to rows already on the server still need the network.
 - **Search and a Logbook.** Search covers titles, notes, tags and projects
   from memory, one row per repeating task, and opens with `/`. The Logbook
   shows everything you've finished, by day, paging further back on request.
@@ -194,7 +198,7 @@ second channel, not redundancy for its own sake.
 ## Not in v1
 
 Writing back to Google Calendar (feeds are read-only) · bills and spending (they live in Tally) · multi-user
-sharing · an offline write queue · attachments · sub-subtasks · iCal import
-or export · natural-language *editing* ("move everything to next week") ·
+sharing · offline edits to already-saved rows (new captures do queue) · attachments · sub-subtasks · iCal
+export · natural-language *editing* ("move everything to next week") ·
 location reminders · time tracking · server-side full-text search (search runs
 over the in-memory working set: everything open and the last month of done).

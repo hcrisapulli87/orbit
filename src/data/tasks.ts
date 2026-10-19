@@ -22,7 +22,8 @@ export async function fetchTasks(today = todayISO()): Promise<Task[]> {
   return data ?? []
 }
 
-export async function createTask(ownerId: string, task: NewTask): Promise<Task> {
+/** `id` may be given, so a capture keeps the id it was queued with. */
+export async function createTask(ownerId: string, task: NewTask & { id?: string }): Promise<Task> {
   const { data, error } = await supabase
     .from('task_tasks')
     .insert({ ...task, owner_id: ownerId })
@@ -57,6 +58,27 @@ export async function updateTask(id: string, patch: Partial<Task>): Promise<void
 export async function deleteTask(id: string): Promise<void> {
   const { error } = await supabase.from('task_tasks').delete().eq('id', id)
   if (error) throw error
+}
+
+/**
+ * Send a queued row. An upsert that ignores an existing id, so a row that
+ * reached the server on an earlier attempt (whose reply was lost) is not
+ * inserted twice.
+ */
+export async function insertTaskIfMissing(row: Record<string, unknown>): Promise<void> {
+  const { error } = await supabase.from('task_tasks').upsert(row, { onConflict: 'id', ignoreDuplicates: true })
+  if (error) throw error
+}
+
+/** The columns Postgres would default, so a queued capture renders like a saved one. */
+export function queuedTask(row: Record<string, unknown>): Task {
+  return {
+    notes: '', project_id: null, area_id: null, parent_id: null, kind: 'task', status: 'open',
+    priority: 0, due_on: null, due_time: null, starts_on: null, estimate_min: null, tags: [],
+    source: 'capture', capture_text: null, parse_confidence: null, completed_at: null,
+    completed_on: null, sort_order: 0, series_id: null, occurrence_key: null,
+    ...row,
+  } as unknown as Task
 }
 
 /** The same patch onto many rows in one round trip — rescheduling a pile of overdue work. */

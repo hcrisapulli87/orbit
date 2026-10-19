@@ -35,6 +35,12 @@ export async function createSeries(
   return data
 }
 
+/** Send a queued rule; harmless if it already arrived. */
+export async function insertSeriesIfMissing(row: Record<string, unknown>): Promise<void> {
+  const { error } = await supabase.from('task_series').upsert(row, { onConflict: 'id', ignoreDuplicates: true })
+  if (error) throw error
+}
+
 export async function updateSeries(id: string, patch: Partial<Series>): Promise<void> {
   const { error } = await supabase.from('task_series').update(patch).eq('id', id)
   if (error) throw error

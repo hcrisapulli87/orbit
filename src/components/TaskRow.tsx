@@ -16,7 +16,7 @@ import type { Task } from '../data/types'
  * nothing to tick, and a birthday doesn't move.
  */
 export function TaskRow({ task, showProject = true }: { task: Task; showProject?: boolean }) {
-  const { projects, tasks, toggleTask, snoozeTask } = useData()
+  const { projects, tasks, toggleTask, snoozeTask, pendingIds } = useData()
   const today = todayISO()
   const tomorrow = addDays(today, 1)
   const children = tasks.filter((t) => t.parent_id === task.id)
@@ -97,6 +97,8 @@ export function TaskRow({ task, showProject = true }: { task: Task; showProject?
               </span>
             )}
             {task.parse_confidence === 'low' && <span className="chip chip--guess">guess</span>}
+            {/* Dashed like a guess: it's real, but not yet anywhere but here. */}
+            {pendingIds.has(task.id) && <span className="chip chip--guess">waiting to save</span>}
           </p>
         </div>
       </div>

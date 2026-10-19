@@ -1,15 +1,19 @@
-import { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react'
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
 import { useAuth } from '../auth/AuthProvider'
 import { todayISO } from '../domain/day'
 import { createArea, fetchAreas, updateArea } from './areas'
 import { archiveProject, createProject, fetchProjects, updateProject } from './projects'
 import {
-  createTask, deleteTask, fetchTasks, restoreTasks, setTaskDone, updateTask, updateTasks,
+  createTask, deleteTask, fetchTasks, insertTaskIfMissing, queuedTask, restoreTasks, setTaskDone,
+  updateTask, updateTasks,
 } from './tasks'
+import { dropQueued, isNetworkError, patchQueued, withQueued } from '../domain/outbox'
+import type { OutboxItem } from '../domain/outbox'
+import { loadOutbox, saveOutbox } from '../lib/outbox'
 import {
   adoptAsFirstOccurrence, advanceAfterCompletion, createSeries, deleteSeries, ensureOccurrences,
-  fetchSeries, propagateToFuture, pruneStaleOccurrences, retractAfterCompletion, ruleOf, updateSeries,
+  fetchSeries, insertSeriesIfMissing, propagateToFuture, pruneStaleOccurrences, retractAfterCompletion, ruleOf, updateSeries,
 } from './series'
 import { nextAfterCompletion } from '../domain/recurrence'
 import { DEFAULT_SETTINGS, fetchSettings, updateSettings } from './settings'
@@ -70,6 +74,8 @@ interface DataContextValue {
   snoozeTask: (task: Task, date: string) => Promise<void>
   rescheduleOverdue: (overdue: Task[], date: string) => Promise<void>
   toast: Toast | null
+  /** Captures made offline, not yet on the server. */
+  pendingIds: Set<string>
   dismissToast: () => void
   undoToast: () => Promise<void>
   addProject: (project: Parameters<typeof createProject>[1]) => Promise<Project | null>
@@ -123,6 +129,15 @@ export function DataProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [toast, setToast] = useState<Toast | null>(null)
+  const [outbox, setOutbox] = useState<OutboxItem[]>(loadOutbox)
+  // Read through a ref by the write paths, so checking "is this one still
+  // queued?" doesn't make every callback depend on the queue.
+  const outboxRef = useRef(outbox)
+  outboxRef.current = outbox
+  useEffect(() => saveOutbox(outbox), [outbox])
+  const pendingIds = useMemo(() => new Set(outbox.map((i) => i.id)), [outbox])
+  const isQueued = (id: string) => outboxRef.current.some((i) => i.id === id)
+  const queue = (item: OutboxItem) => setOutbox((q) => [...q, item])
   const toastSeq = useRef(0)
 
   const showToast = useCallback((message: string, undo?: () => Promise<void>) => {
@@ -201,17 +216,32 @@ export function DataProvider({ children }: { children: ReactNode }) {
 
   // Optimistic writes: the UI moves immediately and resyncs from the server on
   // failure. Ticking a checkbox that waits on a round trip feels broken.
+  // The id is chosen here rather than by Postgres, so that a capture which
+  // can't be sent yet already has the id it will keep — and a step added to
+  // it while it waits can point at it.
   const addTask = useCallback(
     async (task: NewTask) => {
       if (!user) return
+      const id = crypto.randomUUID()
+      const row = { ...task, id, owner_id: user.id, created_at: new Date().toISOString() }
+      const parentWaiting = task.parent_id ? isQueued(task.parent_id) : false
+      if (!navigator.onLine || parentWaiting) {
+        queue({ kind: 'task', id, row })
+        return
+      }
       try {
-        const created = await createTask(user.id, task)
+        const created = await createTask(user.id, { ...task, id })
         setTasks((prev) => [...prev, created])
       } catch (e: unknown) {
+        if (isNetworkError(e, navigator.onLine)) {
+          queue({ kind: 'task', id, row })
+          return
+        }
         setError(e instanceof Error ? e.message : 'Could not add that')
         reload()
       }
     },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     [user, reload],
   )
 
@@ -219,6 +249,14 @@ export function DataProvider({ children }: { children: ReactNode }) {
     async (task: Task) => {
       const done = task.status !== 'done'
       const today = todayISO()
+      if (isQueued(task.id)) {
+        setOutbox((q) => patchQueued(q, task.id, {
+          status: done ? 'done' : 'open',
+          completed_at: done ? new Date().toISOString() : null,
+          completed_on: done ? today : null,
+        }))
+        return
+      }
       setTasks((prev) =>
         prev.map((t) =>
           t.id === task.id
@@ -275,6 +313,10 @@ export function DataProvider({ children }: { children: ReactNode }) {
    */
   const snoozeTask = useCallback(
     async (task: Task, date: string) => {
+      if (isQueued(task.id)) {
+        setOutbox((q) => patchQueued(q, task.id, { due_on: date }))
+        return
+      }
       const before = task.due_on
       setTasks((prev) => prev.map((t) => (t.id === task.id ? { ...t, due_on: date } : t)))
       try {
@@ -340,16 +382,33 @@ export function DataProvider({ children }: { children: ReactNode }) {
   const addSeries = useCallback(
     async (input: NewSeries) => {
       if (!user) return
+      // A rule's occurrences are made from the server's copy, so a rule typed
+      // offline can't show anything until it's sent. Say so, rather than let
+      // it look as though the capture vanished.
+      const queueRule = () => {
+        const id = crypto.randomUUID()
+        queue({ kind: 'series', id, row: { ...input, id, owner_id: user.id } })
+        showToast(`No connection — “${input.title}” will start repeating once you’re back online`)
+      }
+      if (!navigator.onLine) {
+        queueRule()
+        return
+      }
       try {
         const created = await createSeries(user.id, input)
         await ensureOccurrences([created], [])
         reload()
       } catch (e: unknown) {
+        if (isNetworkError(e, navigator.onLine)) {
+          queueRule()
+          return
+        }
         setError(e instanceof Error ? e.message : 'Could not add that')
         reload()
       }
     },
-    [user, reload],
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [user, reload, showToast],
   )
 
   /**
@@ -690,6 +749,10 @@ export function DataProvider({ children }: { children: ReactNode }) {
 
   const patchTask = useCallback(
     async (id: string, patch: Partial<Task>) => {
+      if (isQueued(id)) {
+        setOutbox((q) => patchQueued(q, id, patch))
+        return
+      }
       setTasks((prev) => prev.map((t) => (t.id === id ? { ...t, ...patch } : t)))
       try {
         await updateTask(id, patch)
@@ -703,6 +766,12 @@ export function DataProvider({ children }: { children: ReactNode }) {
 
   const removeTask = useCallback(
     async (id: string) => {
+      // Never sent, so there's nothing on the server to delete — and anything
+      // queued under it goes too, as the cascade would have taken it.
+      if (isQueued(id)) {
+        setOutbox((q) => dropQueued(q, id).filter((i) => i.row.parent_id !== id))
+        return
+      }
       // Subtasks and blocks cascade in the database, so removing a parent
       // takes its children with it. They're snapshotted first so undo can put
       // every row back with the ids it had — parent before children.
@@ -729,14 +798,64 @@ export function DataProvider({ children }: { children: ReactNode }) {
     [tasks, blocks, reload, showToast],
   )
 
+  /**
+   * Send what was captured offline, oldest first, stopping at the first
+   * network failure so the order is kept. A row the server refuses outright
+   * is taken out of the queue — it would only be refused again and would
+   * block everything behind it — and its title is put in the error, so the
+   * words aren't lost even though the row is.
+   */
+  const flushing = useRef(false)
+  const flushOutbox = useCallback(async () => {
+    if (!user || flushing.current || !navigator.onLine) return
+    const items = outboxRef.current.filter((i) => i.row.owner_id === user.id)
+    if (items.length === 0) return
+    flushing.current = true
+    let sent = 0
+    try {
+      for (const item of items) {
+        try {
+          if (item.kind === 'task') await insertTaskIfMissing(item.row)
+          else await insertSeriesIfMissing(item.row)
+          sent++
+          setOutbox((q) => dropQueued(q, item.id))
+        } catch (e: unknown) {
+          if (isNetworkError(e, navigator.onLine)) break
+          setOutbox((q) => dropQueued(q, item.id))
+          setError(`Couldn’t save “${String(item.row.title)}”: ${e instanceof Error ? e.message : 'refused'}`)
+        }
+      }
+    } finally {
+      flushing.current = false
+    }
+    // reload() also tops every series up to its horizon, which is what makes
+    // a rule captured offline finally show its occurrences.
+    if (sent > 0) reload()
+  }, [user, reload])
+
+  useEffect(() => {
+    void flushOutbox()
+    const onOnline = () => void flushOutbox()
+    const onVisible = () => document.visibilityState === 'visible' && void flushOutbox()
+    window.addEventListener('online', onOnline)
+    document.addEventListener('visibilitychange', onVisible)
+    return () => {
+      window.removeEventListener('online', onOnline)
+      document.removeEventListener('visibilitychange', onVisible)
+    }
+  }, [flushOutbox])
+
+  // Everything the screens see includes what's still waiting to be sent.
+  const visibleTasks = useMemo(() => withQueued(tasks, outbox, queuedTask), [tasks, outbox])
+
   return (
     <DataContext.Provider
       value={{
-        areas, projects, tasks, series, blocks, templates, templateItems,
+        areas, projects, tasks: visibleTasks, series, blocks, templates, templateItems,
         settings, loading, error, reload,
         calendars, calendarSlices, feedStatus, refreshFeeds, addCalendar, patchCalendar, removeCalendar,
         addTask, addSeries, patchSeries, removeSeries, makeRecurring,
-        toggleTask, patchTask, removeTask, snoozeTask, rescheduleOverdue, toast, dismissToast, undoToast,
+        toggleTask, patchTask, removeTask, snoozeTask, rescheduleOverdue, toast, dismissToast, undoToast, pendingIds,
         addProject, patchProject, removeProject, addArea, patchArea,
         saveSettings, addBlock, patchBlock, removeBlock, planDay, clearPlan,
       }}

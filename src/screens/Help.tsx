@@ -211,6 +211,17 @@ export default function Help() {
       </div>
 
       <div className="card">
+        <h2>No signal</h2>
+        <p className="hint">
+          Orbit opens without a connection, and anything you add is kept on the
+          phone with a dashed <em>waiting to save</em> chip, then sent when the
+          connection is back. You can tick, move or edit those while you wait.
+          Changes to things that were already saved still need a connection —
+          the bar at the top says when you're offline.
+        </p>
+      </div>
+
+      <div className="card">
         <h2>Reminders</h2>
         <p className="hint">
           Turn on notifications in <Link to="/settings">Settings</Link>. You'll
