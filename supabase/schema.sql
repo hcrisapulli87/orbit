@@ -335,6 +335,26 @@ alter table public.task_notifications
   add constraint task_notifications_kind_check
   check (kind in ('due_soon', 'due_today', 'overdue', 'block_start', 'event_lead'));
 
+-- ── v10: calendar feeds ───────────────────────────────────────────────────────
+
+-- The private iCal addresses of calendars kept elsewhere (Google, Outlook,
+-- iCloud). Only the address is stored: the feed itself is fetched through the
+-- calendar-feed Edge Function and read in the browser on every load, so there
+-- is no copy of anyone's meetings here to go stale or to leak.
+--
+-- The address is a credential — anyone holding it can read that calendar —
+-- which is one more reason this table is owner-only like everything else.
+create table if not exists public.task_calendars (
+  id         uuid primary key default gen_random_uuid(),
+  owner_id   uuid not null references public.profiles (id) on delete cascade,
+  name       text not null check (length(trim(name)) > 0),
+  url        text not null check (url ~* '^(https|webcal)://'),
+  enabled    boolean not null default true,
+  created_at timestamptz not null default now()
+);
+
+create index if not exists task_calendars_owner_idx on public.task_calendars (owner_id);
+
 -- ── Seeds ─────────────────────────────────────────────────────────────────────
 -- Orbit is single-user, so the seeds belong to one account. Change the email
 -- below if the owner ever changes. Idempotent: re-running inserts nothing new.
@@ -394,7 +414,7 @@ declare t text;
 begin
   foreach t in array array['task_areas', 'task_projects', 'task_tasks', 'task_series', 'task_settings', 'task_blocks',
                            'task_templates', 'task_template_items',
-                           'task_push_subscriptions', 'task_notifications'] loop
+                           'task_push_subscriptions', 'task_notifications', 'task_calendars'] loop
     execute format('alter table public.%I enable row level security', t);
     execute format('drop policy if exists "%s: owner only" on public.%I', t, t);
     execute format(
@@ -412,7 +432,7 @@ declare t text;
 begin
   foreach t in array array['task_areas', 'task_projects', 'task_tasks', 'task_series', 'task_settings', 'task_blocks',
                            'task_templates', 'task_template_items',
-                           'task_push_subscriptions', 'task_notifications'] loop
+                           'task_push_subscriptions', 'task_notifications', 'task_calendars'] loop
     if not exists (
       select 1 from pg_publication_tables
       where pubname = 'supabase_realtime' and schemaname = 'public' and tablename = t

@@ -113,6 +113,22 @@ export default function Help() {
       </div>
 
       <div className="card">
+        <h2>Your other calendars</h2>
+        <p className="hint">
+          Add a Google, Outlook or iCloud calendar in{' '}
+          <Link to="/settings">Settings</Link> by pasting its private iCal
+          address. Its meetings show on Today and in the calendar, hatched, and
+          Orbit never writes to it — change a meeting where it lives.
+        </p>
+        <p className="hint">
+          Meetings count against the day: Today's capacity is the smaller of
+          what Settings gives that weekday and what your meetings leave free,
+          and auto-plan never puts a task on top of one. Anything marked “free”
+          in its own calendar is shown but not counted.
+        </p>
+      </div>
+
+      <div className="card">
         <h2>Auto-plan my day</h2>
         <p className="hint">
           Lays today's work onto the calendar, and only today's. Anything that

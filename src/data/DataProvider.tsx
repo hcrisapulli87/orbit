@@ -18,13 +18,19 @@ import {
   updateBlock,
 } from './blocks'
 import { fetchTemplateItems, fetchTemplates } from './templates'
+import {
+  createCalendar, deleteCalendar, fetchCalendars, restoreCalendar, updateCalendar,
+} from './calendars'
+import { useCalendarFeeds } from './useCalendarFeeds'
+import type { CalendarSlice, FeedStatus } from './useCalendarFeeds'
 import { suggestBlocks } from '../domain/planner'
+import type { Interval } from '../domain/planner'
 import { planReschedule } from '../domain/reschedule'
 import { minutesToTime, parseTimeToMinutes, relativeLabel } from '../domain/day'
 import { useRealtime } from './useRealtime'
 import { applyAppearance, storeAppearance } from '../lib/appearance'
 import type {
-  Area, Block, NewSeries, NewTask, Project, Series, Settings, Task, Template, TemplateItem,
+  Area, Block, Calendar, NewSeries, NewTask, Project, Series, Settings, Task, Template, TemplateItem,
 } from './types'
 
 interface DataContextValue {
@@ -36,6 +42,14 @@ interface DataContextValue {
   templates: Template[]
   templateItems: TemplateItem[]
   settings: Omit<Settings, 'id' | 'owner_id' | 'created_at'>
+  /** Calendars read from elsewhere, and their events as slices of local days. */
+  calendars: Calendar[]
+  calendarSlices: CalendarSlice[]
+  feedStatus: Map<string, FeedStatus>
+  refreshFeeds: () => Promise<void>
+  addCalendar: (calendar: Pick<Calendar, 'name' | 'url'>) => Promise<boolean>
+  patchCalendar: (id: string, patch: Partial<Calendar>) => Promise<void>
+  removeCalendar: (id: string) => Promise<void>
   loading: boolean
   error: string
   reload: () => void
@@ -91,6 +105,7 @@ const DataContext = createContext<DataContextValue | undefined>(undefined)
 
 const TABLES = [
   'task_areas', 'task_projects', 'task_tasks', 'task_series', 'task_settings', 'task_blocks',
+  'task_calendars',
 ]
 
 export function DataProvider({ children }: { children: ReactNode }) {
@@ -103,6 +118,8 @@ export function DataProvider({ children }: { children: ReactNode }) {
   const [templates, setTemplates] = useState<Template[]>([])
   const [templateItems, setTemplateItems] = useState<TemplateItem[]>([])
   const [settings, setSettings] = useState(DEFAULT_SETTINGS)
+  const [calendars, setCalendars] = useState<Calendar[]>([])
+  const { slices: calendarSlices, status: feedStatus, refresh: refreshFeeds } = useCalendarFeeds(calendars)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [toast, setToast] = useState<Toast | null>(null)
@@ -124,9 +141,9 @@ export function DataProvider({ children }: { children: ReactNode }) {
   const reload = useCallback(() => {
     Promise.all([
       fetchAreas(), fetchProjects(), fetchTasks(), fetchSeries(), fetchSettings(), fetchBlocks(),
-      fetchTemplates(), fetchTemplateItems(),
+      fetchTemplates(), fetchTemplateItems(), fetchCalendars(),
     ])
-      .then(([a, p, t, s, cfg, b, tpl, tplItems]) => {
+      .then(([a, p, t, s, cfg, b, tpl, tplItems, cals]) => {
         setAreas(a)
         setProjects(p)
         setTasks(t)
@@ -134,6 +151,9 @@ export function DataProvider({ children }: { children: ReactNode }) {
         setBlocks(b)
         setTemplates(tpl)
         setTemplateItems(tplItems)
+        // Kept as the same array when nothing changed, so a realtime echo
+        // doesn't make every feed refetch.
+        setCalendars((prev) => (JSON.stringify(prev) === JSON.stringify(cals) ? prev : cals))
         // A missing settings row is fine — the defaults are the same values.
         setSettings(cfg ?? DEFAULT_SETTINGS)
         setError('')
@@ -574,11 +594,17 @@ export function DataProvider({ children }: { children: ReactNode }) {
         const dayBlocks = blocks.filter((b) => b.on_date === date)
         const manual = dayBlocks.filter((b) => b.source === 'manual')
 
-        const busy = manual.flatMap((b) => {
-          const start = parseTimeToMinutes(b.start_time)
-          const end = parseTimeToMinutes(b.end_time)
-          return start !== null && end !== null ? [{ start, end }] : []
-        })
+        const busy = [
+          ...manual.flatMap((b) => {
+            const start = parseTimeToMinutes(b.start_time)
+            const end = parseTimeToMinutes(b.end_time)
+            return start !== null && end !== null ? [{ start, end }] : []
+          }),
+          // Meetings from a connected calendar are committed time too — the
+          // reason for reading the calendar at all is so a task is never
+          // planned on top of one.
+          ...busySlices(calendarSlices, date),
+        ]
 
         const suggestions = suggestBlocks(tasks, {
           today: date,
@@ -608,7 +634,58 @@ export function DataProvider({ children }: { children: ReactNode }) {
         setError(e instanceof Error ? e.message : 'Could not plan the day')
       }
     },
-    [user, blocks, tasks, settings, reload],
+    [user, blocks, tasks, settings, calendarSlices, reload],
+  )
+
+  const addCalendar = useCallback(
+    async (calendar: Pick<Calendar, 'name' | 'url'>): Promise<boolean> => {
+      if (!user) return false
+      try {
+        const created = await createCalendar(user.id, calendar)
+        setCalendars((prev) => [...prev, created])
+        return true
+      } catch (e: unknown) {
+        setError(e instanceof Error ? e.message : 'Could not add that calendar')
+        return false
+      }
+    },
+    [user],
+  )
+
+  const patchCalendar = useCallback(
+    async (id: string, patch: Partial<Calendar>) => {
+      setCalendars((prev) => prev.map((c) => (c.id === id ? { ...c, ...patch } : c)))
+      try {
+        await updateCalendar(id, patch)
+      } catch (e: unknown) {
+        setError(e instanceof Error ? e.message : 'Could not save that')
+        reload()
+      }
+    },
+    [reload],
+  )
+
+  // The saved address is the one thing that's tedious to get back — it means
+  // a trip to a desktop browser and a settings page three levels deep — so
+  // removing a calendar can be undone like anything else.
+  const removeCalendar = useCallback(
+    async (id: string) => {
+      const gone = calendars.find((c) => c.id === id)
+      setCalendars((prev) => prev.filter((c) => c.id !== id))
+      try {
+        await deleteCalendar(id)
+        if (gone) {
+          showToast(`Removed: ${gone.name}`, async () => {
+            setCalendars((prev) => [...prev, gone])
+            await restoreCalendar(gone)
+          })
+        }
+      } catch (e: unknown) {
+        setError(e instanceof Error ? e.message : 'Could not remove that calendar')
+        reload()
+      }
+    },
+    [calendars, reload, showToast],
   )
 
   const patchTask = useCallback(
@@ -657,6 +734,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
       value={{
         areas, projects, tasks, series, blocks, templates, templateItems,
         settings, loading, error, reload,
+        calendars, calendarSlices, feedStatus, refreshFeeds, addCalendar, patchCalendar, removeCalendar,
         addTask, addSeries, patchSeries, removeSeries, makeRecurring,
         toggleTask, patchTask, removeTask, snoozeTask, rescheduleOverdue, toast, dismissToast, undoToast,
         addProject, patchProject, removeProject, addArea, patchArea,
@@ -666,6 +744,14 @@ export function DataProvider({ children }: { children: ReactNode }) {
       {children}
     </DataContext.Provider>
   )
+}
+
+/** A day's timed, busy calendar time — what a meeting takes out of the day. */
+// eslint-disable-next-line react-refresh/only-export-components
+export function busySlices(slices: CalendarSlice[], day: string): Interval[] {
+  return slices
+    .filter((s) => s.day === day && !s.allDay && s.busy)
+    .map((s) => ({ start: s.startMin, end: s.endMin }))
 }
 
 // eslint-disable-next-line react-refresh/only-export-components

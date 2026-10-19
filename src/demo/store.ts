@@ -42,6 +42,7 @@ const DEFAULTS: Record<string, Row> = {
   },
   task_settings: {},
   task_push_subscriptions: { failure_count: 0 },
+  task_calendars: { enabled: true },
 }
 
 export const tables: Tables = {}

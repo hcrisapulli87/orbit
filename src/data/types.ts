@@ -190,3 +190,16 @@ export type NewTask = Partial<
     | 'parse_confidence'
   >
 > & { title: string }
+
+/**
+ * A calendar kept elsewhere, read through its private iCal address. Only the
+ * address is stored; the events are fetched and read fresh on every load.
+ */
+export interface Calendar {
+  id: string
+  owner_id: string
+  name: string
+  url: string
+  enabled: boolean
+  created_at: string
+}

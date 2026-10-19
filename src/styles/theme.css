@@ -646,6 +646,9 @@ body::before {
 /* Square rather than round: an appointment is a span of time, a task is a
    moment, and at five pixels shape is the only difference that survives. */
 .pip--block { border-radius: 1px; background: var(--mark-2); }
+/* A meeting from a connected calendar: square like a block, but in the
+   neutral ink, because it's someone else's time rather than yours to plan. */
+.pip--meeting { border-radius: 1px; background: var(--dim); }
 
 /* ---- hour grid, shared by week and day ---- */
 .weekgrid { display: flex; gap: 2px; }
@@ -700,6 +703,17 @@ body::before {
   background: color-mix(in srgb, var(--mark-2) 26%, transparent);
   border-color: color-mix(in srgb, var(--mark-2) 50%, transparent);
 }
+/* Read from another calendar: hatched and neutral, so it reads as time that's
+   taken rather than as something of yours to open or move. */
+.daycol__item--event, .spine__item--event {
+  color: var(--dim);
+  background: repeating-linear-gradient(
+    135deg,
+    color-mix(in srgb, var(--dim) 16%, transparent) 0 6px,
+    color-mix(in srgb, var(--dim) 6%, transparent) 6px 12px
+  );
+  border-color: color-mix(in srgb, var(--dim) 40%, transparent);
+}
 /* As a button it inherits none of the above, so restate the parts a UA
    stylesheet would otherwise take back. */
 button.daycol__item {
@@ -752,6 +766,9 @@ button.daycol__item {
 }
 .blockrow:last-of-type { border-bottom: 0; }
 .blockrow:active { opacity: 0.6; }
+/* A row that only reports something — a meeting from another calendar. */
+.blockrow--static { cursor: default; }
+.blockrow--static:active { opacity: 1; }
 .blockrow__when { font-variant-numeric: tabular-nums; font-weight: 600; flex-shrink: 0; }
 .blockrow__what { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 

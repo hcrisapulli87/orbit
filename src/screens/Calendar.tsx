@@ -5,6 +5,8 @@ import { TaskRow } from '../components/TaskRow'
 import { SegmentedControl } from '../components/ui/SegmentedControl'
 import { DayColumn, HOUR_PX, timedEntriesFor } from '../components/calendar/DayColumn'
 import { BlockSheet, blockRange } from '../components/calendar/BlockSheet'
+import { EventList } from '../components/calendar/EventList'
+import type { CalendarSlice } from '../data/useCalendarFeeds'
 import { useData } from '../data/DataProvider'
 import { monthGrid, monthLabel, visibleWindow, weekDays } from '../domain/calendarGrid'
 import { withinHorizon } from '../domain/planner'
@@ -45,8 +47,15 @@ function blockEntries(blocks: Block[], tasks: Task[]): TimedEntry[] {
   })
 }
 
+/** Timed slices from connected calendars, as grid entries. */
+function eventEntries(slices: CalendarSlice[]): TimedEntry[] {
+  return slices
+    .filter((s) => !s.allDay)
+    .map((s) => ({ id: s.id, title: s.title || 'Busy', startMin: s.startMin, endMin: s.endMin, kind: 'event' as const }))
+}
+
 export default function Calendar() {
-  const { tasks, blocks, settings } = useData()
+  const { tasks, blocks, settings, calendarSlices } = useData()
   const today = todayISO()
   const [view, setView] = useState<View>('month')
   const [cursor, setCursor] = useState(today)
@@ -72,6 +81,16 @@ export default function Calendar() {
     }
     return map
   }, [blocks])
+
+  const eventsByDay = useMemo(() => {
+    const map = new Map<string, CalendarSlice[]>()
+    for (const s of calendarSlices) {
+      const list = map.get(s.day) ?? []
+      list.push(s)
+      map.set(s.day, list)
+    }
+    return map
+  }, [calendarSlices])
 
   const dayStartMin = parseTimeToMinutes(settings.day_start) ?? 480
   const dayEndMin = parseTimeToMinutes(settings.day_end) ?? 1260
@@ -119,6 +138,7 @@ export default function Calendar() {
           today={today}
           byDay={byDay}
           blocksByDay={blocksByDay}
+          eventsByDay={eventsByDay}
           onPick={(d) => {
             setCursor(d)
             setView('day')
@@ -132,6 +152,7 @@ export default function Calendar() {
           today={today}
           byDay={byDay}
           blocksByDay={blocksByDay}
+          eventsByDay={eventsByDay}
           tasks={tasks}
           dayStartMin={dayStartMin}
           dayEndMin={dayEndMin}
@@ -147,6 +168,7 @@ export default function Calendar() {
           date={cursor}
           byDay={byDay}
           blocks={blocksByDay.get(cursor) ?? []}
+          events={eventsByDay.get(cursor) ?? []}
           tasks={tasks}
           dayStartMin={dayStartMin}
           dayEndMin={dayEndMin}
@@ -161,12 +183,14 @@ function MonthView({
   today,
   byDay,
   blocksByDay,
+  eventsByDay,
   onPick,
 }: {
   cursor: string
   today: string
   byDay: Map<string, Task[]>
   blocksByDay: Map<string, Block[]>
+  eventsByDay: Map<string, CalendarSlice[]>
   onPick: (date: string) => void
 }) {
   const grid = monthGrid(cursor)
@@ -186,7 +210,11 @@ function MonthView({
           // Appointments were invisible at this zoom, which is most of why the
           // month didn't read as a calendar: a day with two meetings and no
           // tasks looked like an empty day.
-          const items = [...(byDay.get(date) ?? []), ...(blocksByDay.get(date) ?? [])]
+          const items = [
+            ...(eventsByDay.get(date) ?? []),
+            ...(byDay.get(date) ?? []),
+            ...(blocksByDay.get(date) ?? []),
+          ]
           const open = items.filter((t) => !('status' in t) || t.status === 'open')
           return (
             <button
@@ -209,7 +237,7 @@ function MonthView({
                       'kind' in t && t.kind === 'event' ? ' pip--event' : ''
                     }${'status' in t && t.status === 'done' ? ' pip--done' : ''}${
                       'on_date' in t ? ' pip--block' : ''
-                    }`}
+                    }${'calendarId' in t ? ' pip--meeting' : ''}`}
                   />
                 ))}
                 {open.length > 3 && <em className="monthcell__more">+{open.length - 3}</em>}
@@ -227,6 +255,7 @@ function WeekView({
   today,
   byDay,
   blocksByDay,
+  eventsByDay,
   tasks,
   dayStartMin,
   dayEndMin,
@@ -236,6 +265,7 @@ function WeekView({
   today: string
   byDay: Map<string, Task[]>
   blocksByDay: Map<string, Block[]>
+  eventsByDay: Map<string, CalendarSlice[]>
   tasks: Task[]
   dayStartMin: number
   dayEndMin: number
@@ -252,6 +282,7 @@ function WeekView({
       [
         ...timedEntriesFor(byDay.get(date) ?? []),
         ...blockEntries((blocksByDay.get(date) ?? []).filter((b) => !b.all_day), tasks),
+        ...eventEntries(eventsByDay.get(date) ?? []),
       ],
     ]),
   )
@@ -262,7 +293,8 @@ function WeekView({
     days.map((date) => [
       date,
       (byDay.get(date) ?? []).filter((t) => !t.due_time).length +
-        (blocksByDay.get(date) ?? []).filter((b) => b.all_day).length,
+        (blocksByDay.get(date) ?? []).filter((b) => b.all_day).length +
+        (eventsByDay.get(date) ?? []).filter((s) => s.allDay).length,
     ]),
   )
   const { startMin, endMin } = visibleWindow(
@@ -315,6 +347,7 @@ function DayView({
   date,
   byDay,
   blocks,
+  events,
   tasks,
   dayStartMin,
   dayEndMin,
@@ -322,6 +355,7 @@ function DayView({
   date: string
   byDay: Map<string, Task[]>
   blocks: Block[]
+  events: CalendarSlice[]
   tasks: Task[]
   dayStartMin: number
   dayEndMin: number
@@ -335,7 +369,8 @@ function DayView({
   const untimed = items.filter((t) => !t.due_time)
   const allDayBlocks = blocks.filter((b) => b.all_day)
   const timedBlocks = blocks.filter((b) => !b.all_day)
-  const entries = [...timedEntriesFor(items), ...blockEntries(timedBlocks, tasks)]
+  const allDayEvents = events.filter((s) => s.allDay)
+  const entries = [...timedEntriesFor(items), ...blockEntries(timedBlocks, tasks), ...eventEntries(events)]
   const { startMin, endMin } = visibleWindow(entries, dayStartMin, dayEndMin)
 
   // Tap opens the thing itself; hold and drag moves it. A block moves by its
@@ -366,12 +401,13 @@ function DayView({
     <>
       <div className="card">
         <h2>All day</h2>
-        {untimed.length === 0 && allDayBlocks.length === 0 ? (
+        {untimed.length === 0 && allDayBlocks.length === 0 && allDayEvents.length === 0 ? (
           <p className="muted" style={{ margin: 0 }}>
             Nothing without a time.
           </p>
         ) : (
           <>
+            <EventList slices={allDayEvents} />
             {allDayBlocks.map((b) => (
               <button key={b.id} className="blockrow" onClick={() => setEditing(b)}>
                 <span className="blockrow__when">All day</span>

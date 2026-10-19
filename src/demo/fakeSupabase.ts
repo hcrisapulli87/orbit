@@ -13,6 +13,8 @@
 import { emitDemoChange, onDemoChange, resetDemoStore, tables, withDefaults } from './store'
 import { clearStoredAppearance } from '../lib/appearance'
 import { DEMO_EMAIL, DEMO_OWNER_ID } from './identity'
+import { buildDemoFeed } from './feed'
+import { todayISO } from '../domain/day'
 import type { Row } from './store'
 
 type Op = 'eq' | 'gte' | 'lte' | 'neq' | 'in'
@@ -259,6 +261,21 @@ export function createDemoClient() {
   return {
     from: (table: string) => new Builder(table),
     channel: () => new DemoChannel(),
+    // Only the calendar-feed function exists in the demo. It answers for the
+    // seeded calendar and fails for anything added by hand, exactly as a real
+    // feed would fail for an address that can't be reached.
+    functions: {
+      invoke: async (name: string, options?: { body?: { calendarId?: string } }) => {
+        const id = options?.body?.calendarId
+        if (name === 'calendar-feed' && id === 'cal-work') {
+          return { data: buildDemoFeed(todayISO()), error: null }
+        }
+        return {
+          data: null,
+          error: { message: 'The demo has no internet — only the seeded Work calendar can be read.' },
+        }
+      },
+    },
     removeChannel: async (channel: DemoChannel) => {
       channel.teardown()
       return 'ok'

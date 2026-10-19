@@ -5,10 +5,11 @@ import { TaskRow } from '../components/TaskRow'
 import { Icon } from '../components/Icon'
 import { EmptyState } from '../components/ui/EmptyState'
 import { BlockSheet, blockRange } from '../components/calendar/BlockSheet'
-import { useData } from '../data/DataProvider'
-import { buildToday } from '../domain/planner'
+import { busySlices, useData } from '../data/DataProvider'
+import { EventList } from '../components/calendar/EventList'
+import { buildToday, freeMinutes } from '../domain/planner'
 import { collapsesSections, usesSpine } from '../domain/appearance'
-import { relativeLabel, todayISO, weekdayOf } from '../domain/day'
+import { parseTimeToMinutes, relativeLabel, todayISO, weekdayOf } from '../domain/day'
 import { weekTally } from '../domain/logbook'
 import TodaySpine from './TodaySpine'
 import { DoneCard, OverdueBanner } from '../components/TodayCards'
@@ -24,7 +25,9 @@ const hours = (min: number) =>
   min >= 60 ? `${Math.floor(min / 60)}h${min % 60 ? ` ${min % 60}m` : ''}` : `${min}m`
 
 export default function Today() {
-  const { tasks, series, blocks, settings, error, planDay, clearPlan, rescheduleOverdue } = useData()
+  const {
+    tasks, series, blocks, settings, error, planDay, clearPlan, rescheduleOverdue, calendarSlices,
+  } = useData()
   const today = todayISO()
   const todayBlocks = blocks.filter((b) => b.on_date === today)
   const [editing, setEditing] = useState<Block | null>(null)
@@ -37,7 +40,15 @@ export default function Today() {
     return tasks.map((t) => ({ ...t, lead_days: t.series_id ? leadById.get(t.series_id) ?? 0 : 0 }))
   }, [tasks, series])
 
-  const capacityMin = settings.weekday_capacity[weekdayOf(today)] ?? 180
+  // Capacity is the smaller of the task time Settings gives this weekday and
+  // what today's meetings actually leave free between the start and end of
+  // the day. A Tuesday with five hours of meetings is not a normal Tuesday.
+  const todayEvents = calendarSlices.filter((s) => s.day === today)
+  const dayStart = parseTimeToMinutes(settings.day_start) ?? 480
+  const dayEnd = parseTimeToMinutes(settings.day_end) ?? 1260
+  const free = freeMinutes(dayStart, dayEnd, busySlices(calendarSlices, today))
+  const meetingMin = dayEnd - dayStart - free
+  const capacityMin = Math.min(settings.weekday_capacity[weekdayOf(today)] ?? 180, free)
   const plan = useMemo(
     () => buildToday(plannable, { today, capacityMin }),
     [plannable, today, capacityMin],
@@ -105,6 +116,7 @@ export default function Today() {
             {plan.overCapacity > 0 && (
               <span className="warn"> · {hours(plan.overCapacity)} more than you have</span>
             )}
+            {meetingMin > 0 && <> · {hours(meetingMin)} in meetings</>}
           </p>
           <button
             className="btn btn--small"
@@ -113,6 +125,13 @@ export default function Today() {
           >
             Auto-plan my day
           </button>
+        </div>
+      )}
+
+      {todayEvents.length > 0 && (
+        <div className="card">
+          <h2>On your calendar</h2>
+          <EventList slices={todayEvents} />
         </div>
       )}
 

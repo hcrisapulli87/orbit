@@ -35,7 +35,7 @@ export default function TodaySpine({
   blocks: Block[]
   doneToday: Task[]
 }) {
-  const { tasks, settings, error, rescheduleOverdue } = useData()
+  const { tasks, settings, error, rescheduleOverdue, calendarSlices } = useData()
   const today = todayISO()
   const { thisWeek } = weekTally(tasks, today)
 
@@ -62,7 +62,13 @@ export default function TodaySpine({
   // used to be when the plan reached days ahead.
   const planned = [...plan.must, ...plan.should]
 
-  const onClock = [...blockEntries, ...timedEntriesFor(planned.filter((t) => t.due_on === today))]
+  const eventEntries: TimedEntry[] = calendarSlices
+    .filter((s) => s.day === today && !s.allDay)
+    .map((s) => ({ id: s.id, title: s.title || 'Busy', startMin: s.startMin, endMin: s.endMin, kind: 'event' as const }))
+
+  const onClock = [
+    ...blockEntries, ...eventEntries, ...timedEntriesFor(planned.filter((t) => t.due_on === today)),
+  ]
     .sort((a, b) => a.startMin - b.startMin)
 
   const onClockIds = new Set(onClock.map((e) => e.id))

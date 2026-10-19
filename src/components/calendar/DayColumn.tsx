@@ -14,8 +14,10 @@ export interface TimedEntry {
   title: string
   startMin: number
   endMin: number
-  /** A placed block reads differently from a task that merely has a time. */
-  kind: 'task' | 'block'
+  /** A placed block reads differently from a task that merely has a time, and
+      an event from a connected calendar differently again — it can't be
+      opened or moved here, because it belongs to that calendar. */
+  kind: 'task' | 'block' | 'event'
 }
 
 /** Tasks with a time of day become entries; the rest belong in the all-day row. */
@@ -92,7 +94,7 @@ export function DayColumn({
         const width = 100 / (l?.columns ?? 1)
         const position = { top, height, left: `${(l?.column ?? 0) * width}%`, width: `${width}%` }
 
-        if (!onOpen) {
+        if (!onOpen || e.kind === 'event') {
           return (
             <div
               key={e.id}

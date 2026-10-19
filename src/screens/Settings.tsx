@@ -1,8 +1,11 @@
 import { useEffect, useState } from 'react'
+import type { FormEvent } from 'react'
 import { Link } from 'react-router-dom'
 import { ScreenHeader } from '../components/ScreenHeader'
 import { useAuth } from '../auth/AuthProvider'
 import { useData } from '../data/DataProvider'
+import { calendarUrlProblem } from '../data/calendars'
+import { addDays, todayISO } from '../domain/day'
 import { PALETTES, THEMES } from '../domain/appearance'
 import { DEMO } from '../lib/supabase'
 import { disablePush, enablePush, isInstalled, pushState } from '../lib/push'
@@ -130,6 +133,8 @@ export default function Settings() {
         </label>
       </div>
 
+      <CalendarsCard />
+
       <div className="card">
         <h2>Notifications</h2>
         <p className="muted" style={{ margin: '0 0 12px', fontSize: '0.8rem' }}>
@@ -165,5 +170,147 @@ export default function Settings() {
         </button>
       </div>
     </main>
+  )
+}
+
+/** "just now", "12 min ago", "3 h ago". */
+function ago(at: number): string {
+  const min = Math.round((Date.now() - at) / 60_000)
+  if (min < 1) return 'just now'
+  if (min < 60) return `${min} min ago`
+  return `${Math.round(min / 60)} h ago`
+}
+
+/**
+ * Calendars kept elsewhere, shown in Orbit and kept clear by auto-plan.
+ *
+ * One form, two fields, both needed — a name so the event list can say where
+ * a meeting came from, and the address. The address is checked for the usual
+ * wrong link before it's saved, because Google's page and embed links look
+ * right and return a web page instead of a calendar.
+ */
+function CalendarsCard() {
+  const { calendars, calendarSlices, feedStatus, addCalendar, patchCalendar, removeCalendar, refreshFeeds } = useData()
+  const [name, setName] = useState('')
+  const [url, setUrl] = useState('')
+  const [problem, setProblem] = useState('')
+  const [saving, setSaving] = useState(false)
+
+  const today = todayISO()
+  const weekAhead = addDays(today, 7)
+  const upcoming = (id: string) =>
+    new Set(
+      calendarSlices
+        .filter((s) => s.calendarId === id && s.day >= today && s.day <= weekAhead)
+        .map((s) => s.key),
+    ).size
+
+  const add = async (e: FormEvent) => {
+    e.preventDefault()
+    const issue = calendarUrlProblem(url)
+    if (issue) {
+      setProblem(issue)
+      return
+    }
+    setSaving(true)
+    const ok = await addCalendar({ name: name.trim() || 'Calendar', url: url.trim() })
+    setSaving(false)
+    if (ok) {
+      setName('')
+      setUrl('')
+      setProblem('')
+    }
+  }
+
+  return (
+    <div className="card">
+      <h2>Calendars</h2>
+      <p className="hint">
+        Show meetings from Google, Outlook or iCloud on Today and the calendar.
+        They count against the day, and auto-plan works around them. Orbit only
+        reads them — nothing is ever written back.
+      </p>
+
+      {calendars.map((c) => {
+        const status = feedStatus.get(c.id)
+        return (
+          <div className="setting-row" key={c.id}>
+            <div className="row--between">
+              <strong>{c.name}</strong>
+              <span className="row">
+                <button
+                  className="btn btn--small"
+                  aria-pressed={c.enabled}
+                  onClick={() => void patchCalendar(c.id, { enabled: !c.enabled })}
+                >
+                  {c.enabled ? 'Hide' : 'Show'}
+                </button>
+                <button className="btn btn--small" onClick={() => void removeCalendar(c.id)}>
+                  Remove
+                </button>
+              </span>
+            </div>
+            <p className="hint" style={{ margin: '4px 0 0' }}>
+              {!c.enabled ? 'Hidden. Its events aren’t shown or counted.'
+                : status?.state === 'error' ? <span className="error">{status.message}</span>
+                : status?.state === 'loading' && !status.at ? 'Reading…'
+                : status?.at ? `${upcoming(c.id)} in the next week · read ${ago(status.at)}`
+                : 'Waiting to be read'}
+            </p>
+          </div>
+        )
+      })}
+
+      {calendars.some((c) => c.enabled) && (
+        <button className="btn btn--small" style={{ margin: '10px 0 4px' }} onClick={() => void refreshFeeds()}>
+          Read them again now
+        </button>
+      )}
+
+      <form onSubmit={add} style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 12 }}>
+        <input
+          id="calendar-name"
+          className="input"
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          placeholder="Name, e.g. Work"
+          aria-label="Calendar name"
+        />
+        <input
+          id="calendar-url"
+          className="input"
+          type="url"
+          inputMode="url"
+          value={url}
+          onChange={(e) => {
+            setUrl(e.target.value)
+            setProblem('')
+          }}
+          placeholder="https://… or webcal://… (.ics)"
+          aria-label="Calendar address"
+        />
+        {problem && <p className="error" style={{ margin: 0, fontSize: '0.8rem' }}>{problem}</p>}
+        <button className="btn" type="submit" disabled={saving || !url.trim()}>
+          {saving ? 'Adding…' : 'Add calendar'}
+        </button>
+      </form>
+
+      <p className="hint" style={{ margin: '12px 0 4px' }}>Where to find the address:</p>
+      <p className="hint" style={{ margin: '0 0 4px' }}>
+        <strong>Google</strong> — on a computer, Settings → your calendar → Integrate
+        calendar → <em>Secret address in iCal format</em>.
+      </p>
+      <p className="hint" style={{ margin: '0 0 4px' }}>
+        <strong>Outlook</strong> — Settings → Calendar → Shared calendars → Publish a
+        calendar → copy the <em>ICS</em> link.
+      </p>
+      <p className="hint" style={{ margin: 0 }}>
+        <strong>iCloud</strong> — in Calendar, share the calendar as a <em>Public
+        Calendar</em> and copy the webcal:// link.
+      </p>
+      <p className="hint" style={{ margin: '8px 0 0' }}>
+        Treat the address like a password: anyone who has it can read that calendar.
+      </p>
+    </div>
   )
 }

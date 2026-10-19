@@ -290,3 +290,29 @@ export function buildToday<T extends Plannable>(
     overCapacity: Math.max(0, plannedMin - capacityMin),
   }
 }
+
+/**
+ * Minutes of the day window not taken by busy time, overlaps counted once.
+ *
+ * This is what a calendar of meetings does to capacity: a day with four hours
+ * of meetings doesn't have the same room for tasks as an empty one, however
+ * much task time Settings says a Tuesday has. Today uses the smaller of the
+ * two, so the bar tells the truth on a meeting-heavy day.
+ */
+export function freeMinutes(dayStartMin: number, dayEndMin: number, busy: Interval[]): number {
+  const clipped = busy
+    .map((b) => ({ start: Math.max(b.start, dayStartMin), end: Math.min(b.end, dayEndMin) }))
+    .filter((b) => b.end > b.start)
+    .sort((a, b) => a.start - b.start)
+
+  let taken = 0
+  let cursor = dayStartMin
+  for (const b of clipped) {
+    const start = Math.max(b.start, cursor)
+    if (b.end > start) {
+      taken += b.end - start
+      cursor = b.end
+    }
+  }
+  return Math.max(0, dayEndMin - dayStartMin - taken)
+}

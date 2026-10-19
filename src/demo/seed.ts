@@ -451,5 +451,11 @@ export function buildSeed(today = todayISO()): Tables {
       created_at: ago(200),
     }],
     task_push_subscriptions: [],
+    // The feed itself is text (demo/feed.ts), served by the fake client's
+    // functions.invoke the way the calendar-feed function serves a real one.
+    task_calendars: [{
+      id: 'cal-work', owner_id: owner, name: 'Work', url: 'https://calendar.example.com/work.ics',
+      enabled: true, created_at: ago(30),
+    }],
   }
 }

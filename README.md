@@ -32,6 +32,12 @@ screen.
   it to tomorrow; ticking, moving, deleting and rescheduling all leave an undo
   toast behind. Today's overdue banner moves the whole pile in one tap, and
   skips a missed repeat rather than stacking it on the next one.
+- **Your other calendars, read-only.** Paste the private iCal address of a
+  Google, Outlook or iCloud calendar and its meetings appear on Today and in
+  the grid, shrink the day's capacity to what they leave free, and are kept
+  clear by auto-plan. Repeat rules, exceptions, moved occurrences and time
+  zones are read in the browser (`domain/ical.ts`); the `calendar-feed` Edge
+  Function only relays the text, because the providers send no CORS headers.
 - **Search and a Logbook.** Search covers titles, notes, tags and projects
   from memory, one row per repeating task, and opens with `/`. The Logbook
   shows everything you've finished, by day, paging further back on request.
@@ -114,8 +120,8 @@ supabase/
 
 `domain/` is the heavy-tested half: recurrence, capture parsing, planner
 scoring, streaks, calendar geometry, template instantiation, appearance
-contrast, search ranking, overdue rescheduling, Logbook paging and the swipe
-gesture. All pure, `now` always injected, no clock mocking.
+contrast, search ranking, overdue rescheduling, Logbook paging, the swipe
+gesture, iCal parsing and time-zone conversion. All pure, `now` always injected, no clock mocking.
 
 ## Setup
 
@@ -152,6 +158,15 @@ curated day.
 Dates are relative to today, so the demo doesn't rot. `npm run demo:build`
 produces a static bundle in `dist-demo/` if it ever needs hosting.
 
+### Calendar feeds (optional)
+
+1. Run `supabase/schema.sql` again — v10 adds `task_calendars`.
+2. `supabase functions deploy calendar-feed` (JWT verification stays on).
+3. Settings → Calendars → paste the calendar's private iCal address.
+
+The function fetches only addresses saved on the caller's own rows, refuses
+anything that isn't public https, and stores nothing.
+
 ### Notifications (optional)
 
 1. `npx web-push generate-vapid-keys`
@@ -178,7 +193,7 @@ second channel, not redundancy for its own sake.
 
 ## Not in v1
 
-Google Calendar sync · bills and spending (they live in Tally) · multi-user
+Writing back to Google Calendar (feeds are read-only) · bills and spending (they live in Tally) · multi-user
 sharing · an offline write queue · attachments · sub-subtasks · iCal import
 or export · natural-language *editing* ("move everything to next week") ·
 location reminders · time tracking · server-side full-text search (search runs

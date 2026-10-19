@@ -3,6 +3,7 @@ import {
   TODAY_HORIZON_DAYS,
   buildToday,
   defaultEstimateFor,
+  freeMinutes,
   isDeferred,
   scoreTask,
   suggestBlocks,
@@ -401,3 +402,21 @@ function addDaysISO(iso: string, days: number): string {
   d.setUTCDate(d.getUTCDate() + days)
   return d.toISOString().slice(0, 10)
 }
+
+describe('freeMinutes', () => {
+  it('is the whole window when nothing is busy', () => {
+    expect(freeMinutes(480, 1020, [])).toBe(540)
+  })
+
+  it('counts overlapping meetings once', () => {
+    expect(freeMinutes(480, 1020, [{ start: 540, end: 600 }, { start: 570, end: 630 }])).toBe(450)
+  })
+
+  it('ignores time outside the window', () => {
+    expect(freeMinutes(480, 1020, [{ start: 420, end: 510 }, { start: 1000, end: 1100 }])).toBe(490)
+  })
+
+  it('never goes below zero', () => {
+    expect(freeMinutes(480, 1020, [{ start: 0, end: 1440 }])).toBe(0)
+  })
+})
