@@ -36,7 +36,8 @@ screen.
 - **Your other calendars, read-only.** Paste the private iCal address of a
   Google, Outlook or iCloud calendar and its meetings appear on Today and in
   the grid, shrink the day's capacity to what they leave free, and are kept
-  clear by auto-plan. Repeat rules, exceptions, moved occurrences and time
+  clear by auto-plan. A task pinned to a time that a meeting or a
+  hand-placed block already occupies says so on its row. Repeat rules, exceptions, moved occurrences and time
   zones are read in the browser (`domain/ical.ts`); the `calendar-feed` Edge
   Function only relays the text, because the providers send no CORS headers.
 - **Capture works offline.** Anything added without a connection is queued on

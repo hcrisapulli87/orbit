@@ -1,6 +1,8 @@
 import { Link } from 'react-router-dom'
 import { useData } from '../data/DataProvider'
-import { addDays, compareISO, daysBetween, formatTime, relativeLabel, todayISO } from '../domain/day'
+import { addDays, compareISO, daysBetween, formatTime, parseTimeToMinutes, relativeLabel, todayISO } from '../domain/day'
+import { clashLabel, clashesWith } from '../domain/clash'
+import { defaultEstimateFor } from '../domain/planner'
 import { SWIPE_TRIGGER } from '../domain/swipe'
 import { useSwipe } from './useSwipe'
 import type { Task } from '../data/types'
@@ -16,7 +18,7 @@ import type { Task } from '../data/types'
  * nothing to tick, and a birthday doesn't move.
  */
 export function TaskRow({ task, showProject = true }: { task: Task; showProject?: boolean }) {
-  const { projects, tasks, toggleTask, snoozeTask, pendingIds } = useData()
+  const { projects, tasks, blocks, calendarSlices, toggleTask, snoozeTask, pendingIds } = useData()
   const today = todayISO()
   const tomorrow = addDays(today, 1)
   const children = tasks.filter((t) => t.parent_id === task.id)
@@ -24,6 +26,27 @@ export function TaskRow({ task, showProject = true }: { task: Task; showProject?
   const isEvent = task.kind === 'event'
   const project = showProject ? projects.find((p) => p.id === task.project_id) : undefined
   const overdue = !done && !isEvent && task.due_on !== null && compareISO(task.due_on, today) < 0
+
+  // A task pinned to a time that something else already occupies: a busy
+  // meeting from a connected calendar, or a block placed by hand. Auto-plan
+  // never moves a pin, so this is the only place the clash gets mentioned.
+  // Free events and auto-plan's own suggestions don't count.
+  const pinnedAt = !done && !isEvent && task.due_on ? parseTimeToMinutes(task.due_time) : null
+  const clashes =
+    pinnedAt === null || task.due_on === null
+      ? []
+      : clashesWith(pinnedAt, pinnedAt + Math.max(15, defaultEstimateFor(task)), [
+          ...calendarSlices
+            .filter((s) => s.day === task.due_on && !s.allDay && s.busy)
+            .map((s) => ({ start: s.startMin, end: s.endMin, title: s.title || 'a meeting' })),
+          ...blocks
+            .filter((b) => b.on_date === task.due_on && b.source === 'manual' && !b.all_day && b.task_id !== task.id)
+            .map((b) => ({
+              start: parseTimeToMinutes(b.start_time) ?? 0,
+              end: parseTimeToMinutes(b.end_time) ?? 0,
+              title: b.label || tasks.find((t) => t.id === b.task_id)?.title || 'a block',
+            })),
+        ])
 
   // Snoozing something already due tomorrow would be a swipe that does nothing.
   const canSnooze = !isEvent && !done && task.due_on !== tomorrow
@@ -95,6 +118,9 @@ export function TaskRow({ task, showProject = true }: { task: Task; showProject?
               <span className="chip">
                 ☑ {children.filter((c) => c.status === 'done').length}/{children.length}
               </span>
+            )}
+            {clashes.length > 0 && (
+              <span className="chip chip--clash">clashes with {clashLabel(clashes)}</span>
             )}
             {task.parse_confidence === 'low' && <span className="chip chip--guess">guess</span>}
             {/* Dashed like a guess: it's real, but not yet anywhere but here. */}

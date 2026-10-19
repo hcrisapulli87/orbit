@@ -141,6 +141,11 @@ export default function Help() {
           and auto-plan never puts a task on top of one. Anything marked “free”
           in its own calendar is shown but not counted.
         </p>
+        <p className="hint">
+          A task you gave a time is never moved, so if a meeting lands on top
+          of it the task says so — <em>clashes with Design review</em> — and
+          the fix is yours: move one of them.
+        </p>
       </div>
 
       <div className="card">

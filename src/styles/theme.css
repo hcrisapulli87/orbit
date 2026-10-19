@@ -610,6 +610,8 @@ body::before {
 }
 .chip--overdue { color: var(--danger-strong); border-color: color-mix(in srgb, var(--danger-strong) 45%, transparent); }
 .chip--today { color: var(--accent-text); border-color: color-mix(in srgb, var(--accent-text) 45%, transparent); }
+/* a pinned time something else already occupies — warned, in words */
+.chip--clash { color: var(--warn); border-color: color-mix(in srgb, var(--warn) 45%, transparent); }
 /* a parsed value the app is only guessing at - dotted, and labelled in words */
 .chip--guess { border-style: dashed; }
 
