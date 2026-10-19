@@ -72,6 +72,7 @@ interface DataContextValue {
   patchTask: (id: string, patch: Partial<Task>) => Promise<void>
   removeTask: (id: string) => Promise<void>
   snoozeTask: (task: Task, date: string) => Promise<void>
+  dropTask: (task: Task) => Promise<void>
   rescheduleOverdue: (overdue: Task[], date: string) => Promise<void>
   toast: Toast | null
   /** Captures made offline, not yet on the server. */
@@ -333,6 +334,35 @@ export function DataProvider({ children }: { children: ReactNode }) {
     [reload, showToast],
   )
 
+  /** Let something go without deleting it: dropped, with a way back. */
+  const dropTask = useCallback(
+    async (task: Task) => {
+      if (isQueued(task.id)) {
+        setOutbox((q) => dropQueued(q, task.id))
+        return
+      }
+      // A drop records the day it happened, as a missed habit day does: the
+      // working set loads recent completions by completed_on, and a dropped
+      // occurrence missing from it would look to the recurrence engine like
+      // one that was never made.
+      const dropped = { status: 'dropped' as const, completed_on: todayISO(), completed_at: new Date().toISOString() }
+      const before = { status: task.status, completed_on: task.completed_on, completed_at: task.completed_at }
+      setTasks((prev) => prev.map((t) => (t.id === task.id ? { ...t, ...dropped } : t)))
+      try {
+        await updateTask(task.id, dropped)
+        showToast(`Dropped: ${task.title}`, async () => {
+          setTasks((prev) => prev.map((t) => (t.id === task.id ? { ...t, ...before } : t)))
+          await updateTask(task.id, before)
+        })
+      } catch (e: unknown) {
+        setError(e instanceof Error ? e.message : 'Could not drop that')
+        reload()
+      }
+    },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [reload, showToast],
+  )
+
   /**
    * Clear the overdue pile in one go. One-off work moves to `date`; a missed
    * repeat whose next occurrence is already waiting is marked dropped instead
@@ -345,18 +375,22 @@ export function DataProvider({ children }: { children: ReactNode }) {
       if (move.length + skip.length === 0) return
       const moveIds = new Set(move.map((t) => t.id))
       const skipIds = new Set(skip.map((t) => t.id))
-      const before = [...move, ...skip].map((t) => ({ id: t.id, due_on: t.due_on, status: t.status }))
+      const before = [...move, ...skip].map((t) => ({
+        id: t.id, due_on: t.due_on, status: t.status, completed_on: t.completed_on, completed_at: t.completed_at,
+      }))
+      // Dated like any drop, so the occurrence stays in the working set.
+      const dropped = { status: 'dropped' as const, completed_on: todayISO(), completed_at: new Date().toISOString() }
 
       setTasks((prev) =>
         prev.map((t) =>
           moveIds.has(t.id) ? { ...t, due_on: date }
-          : skipIds.has(t.id) ? { ...t, status: 'dropped' }
+          : skipIds.has(t.id) ? { ...t, ...dropped }
           : t,
         ),
       )
       try {
         await updateTasks([...moveIds], { due_on: date })
-        await updateTasks([...skipIds], { status: 'dropped' })
+        await updateTasks([...skipIds], dropped)
 
         const when = inSentence(date)
         const parts = [
@@ -367,7 +401,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
         showToast(message.charAt(0).toUpperCase() + message.slice(1), async () => {
           const byId = new Map(before.map((b) => [b.id, b]))
           setTasks((prev) => prev.map((t) => (byId.has(t.id) ? { ...t, ...byId.get(t.id)! } : t)))
-          await Promise.all(before.map((b) => updateTask(b.id, { due_on: b.due_on, status: b.status })))
+          await Promise.all(before.map(({ id, ...was }) => updateTask(id, was)))
         })
       } catch (e: unknown) {
         setError(e instanceof Error ? e.message : 'Could not move those')
@@ -855,7 +889,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
         settings, loading, error, reload,
         calendars, calendarSlices, feedStatus, refreshFeeds, addCalendar, patchCalendar, removeCalendar,
         addTask, addSeries, patchSeries, removeSeries, makeRecurring,
-        toggleTask, patchTask, removeTask, snoozeTask, rescheduleOverdue, toast, dismissToast, undoToast, pendingIds,
+        toggleTask, patchTask, removeTask, snoozeTask, dropTask, rescheduleOverdue, toast, dismissToast, undoToast, pendingIds,
         addProject, patchProject, removeProject, addArea, patchArea,
         saveSettings, addBlock, patchBlock, removeBlock, planDay, clearPlan,
       }}

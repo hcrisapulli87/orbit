@@ -793,6 +793,17 @@ button.daycol__item {
   border-radius: var(--radius-sm); padding: 10px 14px; margin-bottom: 14px;
   color: var(--danger-strong); font-size: 0.9rem;
 }
+/* ---- weekly review: a label, a bar, a number, in three fixed columns so the
+        bars line up down the card ---- */
+.review-bar {
+  display: grid; grid-template-columns: minmax(0, 7.5rem) 1fr auto; align-items: center;
+  gap: 10px; padding: 6px 0; font-size: 0.85rem; font-variant-numeric: tabular-nums;
+}
+.review-bar > span:first-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.review-bar__track { height: 8px; border-radius: 999px; background: var(--track); overflow: hidden; }
+.review-bar__fill { display: block; height: 100%; border-radius: 999px; background: var(--mark-grad); }
+.review-bar__fill--over { background: var(--grad-over); }
+
 .banner__actions { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
 .meter { height: 8px; border-radius: 999px; background: var(--track); overflow: hidden; }
 .meter__fill { height: 100%; background: var(--mark-grad); border-radius: 999px; }

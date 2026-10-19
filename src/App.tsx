@@ -19,6 +19,8 @@ import Templates from './screens/Templates'
 import Help from './screens/Help'
 import Search from './screens/Search'
 import Logbook from './screens/Logbook'
+import WrapUp from './screens/WrapUp'
+import WeekReview from './screens/WeekReview'
 
 export default function App() {
   const { session, loading } = useAuth()
@@ -52,6 +54,8 @@ export default function App() {
             <Route path="/help" element={<Help />} />
             <Route path="/search" element={<Search />} />
             <Route path="/logbook" element={<Logbook />} />
+            <Route path="/wrap-up" element={<WrapUp />} />
+            <Route path="/week" element={<WeekReview />} />
             <Route path="*" element={<Today />} />
           </Route>
         </Routes>

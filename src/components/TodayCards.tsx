@@ -1,6 +1,7 @@
 import { Link } from 'react-router-dom'
 import { TaskRow } from './TaskRow'
-import { addDays, todayISO } from '../domain/day'
+import { addDays, todayISO, weekdayOf } from '../domain/day'
+import { wrapUpTime } from '../domain/review'
 import type { Task } from '../data/types'
 
 // Two cards both Today layouts share — the stacked list and Transit's rail —
@@ -52,6 +53,35 @@ export function DoneCard({ doneToday, thisWeek }: { doneToday: Task[]; thisWeek:
       {doneToday.map((t) => (
         <TaskRow key={t.id} task={t} />
       ))}
+    </div>
+  )
+}
+
+/**
+ * The way into the wrap-up and the weekly review, offered only when they make
+ * sense — the wrap-up from late afternoon, the review from Friday to Monday
+ * (on a Monday it covers the week just ended) —
+ * so the top of Today isn't permanently cluttered with rituals. Both screens
+ * are always reachable from Help as well.
+ */
+export function ReviewPrompts({ dayEndMin }: { dayEndMin: number }) {
+  const now = new Date()
+  const evening = wrapUpTime(now.getHours() * 60 + now.getMinutes(), dayEndMin)
+  const weekday = weekdayOf(todayISO())
+  const weekend = weekday === 5 || weekday === 6 || weekday === 0 || weekday === 1
+  if (!evening && !weekend) return null
+  return (
+    <div className="triage" style={{ margin: '0 0 var(--gap)' }}>
+      {evening && (
+        <Link className="chip chip--action" to="/wrap-up">
+          Wrap up the day
+        </Link>
+      )}
+      {weekend && (
+        <Link className="chip chip--action" to="/week">
+          Review the week
+        </Link>
+      )}
     </div>
   )
 }

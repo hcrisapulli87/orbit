@@ -72,6 +72,8 @@ class Builder<T = Row[]> implements PromiseLike<Result<T>> {
   private ignoreDuplicates = false
   private returning = false
   private cardinality: 'many' | 'one' | 'maybe' = 'many'
+  /** Whether the last run actually changed a row — what realtime reports on. */
+  private changed = false
 
   constructor(private table: string) {}
 
@@ -144,6 +146,7 @@ class Builder<T = Row[]> implements PromiseLike<Result<T>> {
       case 'insert': {
         const created = this.payload.map((r) => withDefaults(this.table, r))
         this.rows.push(...created)
+        this.changed = created.length > 0
         return this.shape(created)
       }
       case 'upsert': {
@@ -153,12 +156,16 @@ class Builder<T = Row[]> implements PromiseLike<Result<T>> {
             this.conflict.every((c) => r[c] === incoming[c]),
           )
           if (existing) {
-            if (!this.ignoreDuplicates) Object.assign(existing, incoming)
+            if (!this.ignoreDuplicates) {
+              Object.assign(existing, incoming)
+              this.changed = true
+            }
             touched.push(existing)
           } else {
             const created = withDefaults(this.table, incoming)
             this.rows.push(created)
             touched.push(created)
+            this.changed = true
           }
         }
         return this.shape(touched)
@@ -166,12 +173,14 @@ class Builder<T = Row[]> implements PromiseLike<Result<T>> {
       case 'update': {
         const hit = this.rows.filter((r) => matches(r, this.filters))
         for (const row of hit) Object.assign(row, this.patch)
+        this.changed = hit.length > 0
         return this.shape(hit)
       }
       case 'delete': {
         const kept = this.rows.filter((r) => !matches(r, this.filters))
         const removed = this.rows.filter((r) => matches(r, this.filters))
         tables[this.table] = kept
+        this.changed = removed.length > 0
         return this.shape(removed)
       }
     }
@@ -196,10 +205,12 @@ class Builder<T = Row[]> implements PromiseLike<Result<T>> {
     // paths assume a real await boundary before state settles.
     return Promise.resolve()
       .then(() => {
-        const wrote = this.mode !== 'select'
         const result = this.run() as Result<T>
-        // Stand in for the realtime echo a write would produce in Postgres.
-        if (wrote) queueMicrotask(emitDemoChange)
+        // Stand in for the realtime echo a write would produce in Postgres —
+        // which fires for rows that changed, not for every statement. An
+        // upsert that ignored every duplicate changed nothing and is silent,
+        // as it is in production; echoing it anyway can loop forever.
+        if (this.changed) queueMicrotask(emitDemoChange)
         return result
       })
       .then(onfulfilled, onrejected)

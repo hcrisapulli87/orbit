@@ -113,6 +113,20 @@ export default function Help() {
       </div>
 
       <div className="card">
+        <h2>Closing the day and the week</h2>
+        <Rows
+          rows={[
+            ['Wrap up', 'From late afternoon Today offers it. What got done, what’s still open — tomorrow, next week, no date or drop, one tap each — and how full tomorrow already is.'],
+            ['The week', 'Offered Friday to Monday — on a Monday it looks back at the week just ended. What you finished and where, how the habits went, which of the next seven days are already too full, and anything undated that’s been sitting a month.'],
+          ]}
+        />
+        <p className="hint" style={{ marginTop: 12 }}>
+          Either is always at <Link to="/wrap-up">/wrap-up</Link> and{' '}
+          <Link to="/week">/week</Link>. Neither asks you to fill anything in.
+        </p>
+      </div>
+
+      <div className="card">
         <h2>Your other calendars</h2>
         <p className="hint">
           Add a Google, Outlook or iCloud calendar in{' '}

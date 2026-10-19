@@ -9,7 +9,7 @@ import { layoutTimedItems, visibleWindow } from '../domain/calendarGrid'
 import { useData } from '../data/DataProvider'
 import { formatTime, minutesToTime, parseTimeToMinutes, relativeLabel, todayISO, weekdayOf } from '../domain/day'
 import { weekTally } from '../domain/logbook'
-import { DoneCard, OverdueBanner } from '../components/TodayCards'
+import { DoneCard, OverdueBanner, ReviewPrompts } from '../components/TodayCards'
 import type { TodayPlan } from '../domain/planner'
 import type { Block, Task } from '../data/types'
 
@@ -109,6 +109,8 @@ export default function TodaySpine({
         }
       />
       {error && <p className="error">{error}</p>}
+
+      <ReviewPrompts dayEndMin={dayEnd} />
 
       {plan.overdue.length > 0 && (
         <OverdueBanner

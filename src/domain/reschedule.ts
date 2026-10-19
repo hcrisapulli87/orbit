@@ -19,7 +19,8 @@ export interface Reschedulable {
  * Split the overdue list into what moves to `target` and what is skipped.
  *
  * A missed occurrence of something that repeats is skipped when the series
- * already has a later one waiting — Tuesday's bins moved onto Wednesday would
+ * already has a later one waiting — another open occurrence, dated after this
+ * one and not itself in the past. Tuesday's bins moved onto Wednesday would
  * sit next to Wednesday's own, and a daily habit would stack up one copy per
  * missed day. Skipped means marked dropped: it didn't happen, and the streak
  * already counts it that way. A repeat with nothing later (one that schedules
@@ -30,17 +31,20 @@ export function planReschedule<T extends Reschedulable>(
   all: T[],
   today: ISODate,
 ): { move: T[]; skip: T[] } {
-  const waiting = new Set(
-    all
-      .filter((t) => t.series_id !== null && t.status === 'open' && t.due_on !== null)
-      .filter((t) => compareISO(t.due_on!, today) >= 0)
-      .map((t) => t.series_id!),
-  )
+  // The latest open, not-yet-past occurrence of each series.
+  const latest = new Map<string, string>()
+  for (const t of all) {
+    if (t.series_id === null || t.status !== 'open' || t.due_on === null) continue
+    if (compareISO(t.due_on, today) < 0) continue
+    const held = latest.get(t.series_id)
+    if (!held || compareISO(t.due_on, held) > 0) latest.set(t.series_id, t.due_on)
+  }
 
   const move: T[] = []
   const skip: T[] = []
   for (const t of overdue) {
-    if (t.series_id !== null && waiting.has(t.series_id)) skip.push(t)
+    const next = t.series_id !== null ? latest.get(t.series_id) : undefined
+    if (next && t.due_on !== null && compareISO(next, t.due_on) > 0) skip.push(t)
     else move.push(t)
   }
   return { move, skip }

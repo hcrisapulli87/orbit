@@ -5,14 +5,15 @@ import { TaskRow } from '../components/TaskRow'
 import { Icon } from '../components/Icon'
 import { EmptyState } from '../components/ui/EmptyState'
 import { BlockSheet, blockRange } from '../components/calendar/BlockSheet'
-import { busySlices, useData } from '../data/DataProvider'
+import { useData } from '../data/DataProvider'
+import { useDayCapacity } from '../data/useDayCapacity'
 import { EventList } from '../components/calendar/EventList'
-import { buildToday, freeMinutes } from '../domain/planner'
+import { buildToday } from '../domain/planner'
 import { collapsesSections, usesSpine } from '../domain/appearance'
 import { parseTimeToMinutes, relativeLabel, todayISO, weekdayOf } from '../domain/day'
 import { weekTally } from '../domain/logbook'
 import TodaySpine from './TodaySpine'
-import { DoneCard, OverdueBanner } from '../components/TodayCards'
+import { DoneCard, OverdueBanner, ReviewPrompts } from '../components/TodayCards'
 import type { Block, Task } from '../data/types'
 
 const WEEKDAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']
@@ -41,14 +42,10 @@ export default function Today() {
   }, [tasks, series])
 
   // Capacity is the smaller of the task time Settings gives this weekday and
-  // what today's meetings actually leave free between the start and end of
-  // the day. A Tuesday with five hours of meetings is not a normal Tuesday.
+  // what today's meetings actually leave free. A Tuesday with five hours of
+  // meetings is not a normal Tuesday.
   const todayEvents = calendarSlices.filter((s) => s.day === today)
-  const dayStart = parseTimeToMinutes(settings.day_start) ?? 480
-  const dayEnd = parseTimeToMinutes(settings.day_end) ?? 1260
-  const free = freeMinutes(dayStart, dayEnd, busySlices(calendarSlices, today))
-  const meetingMin = dayEnd - dayStart - free
-  const capacityMin = Math.min(settings.weekday_capacity[weekdayOf(today)] ?? 180, free)
+  const { capacityMin, meetingMin } = useDayCapacity()(today)
   const plan = useMemo(
     () => buildToday(plannable, { today, capacityMin }),
     [plannable, today, capacityMin],
@@ -91,6 +88,8 @@ export default function Today() {
         }
       />
       {error && <p className="error">{error}</p>}
+
+      <ReviewPrompts dayEndMin={parseTimeToMinutes(settings.day_end) ?? 1260} />
 
       {plan.overdue.length > 0 && (
         <OverdueBanner

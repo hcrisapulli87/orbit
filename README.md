@@ -42,6 +42,12 @@ screen.
   the device with the id it will keep, shown with a *waiting to save* chip,
   and sent in order when the connection returns — safely, if it's sent twice.
   Edits to rows already on the server still need the network.
+- **Wrap-up and weekly review.** Two screens, offered on Today when they
+  make sense (late afternoon; Friday to Monday) and never required. The
+  wrap-up shows what got done, takes a one-tap decision on each thing still
+  open, and says how full tomorrow already is. The review covers what you
+  finished and where, how each habit went, which of the next seven days are
+  over capacity, and the undated work that's been sitting a month.
 - **Search and a Logbook.** Search covers titles, notes, tags and projects
   from memory, one row per repeating task, and opens with `/`. The Logbook
   shows everything you've finished, by day, paging further back on request.

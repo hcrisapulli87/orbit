@@ -45,4 +45,16 @@ describe('planReschedule', () => {
     const later = task({ series_id: 's', due_on: TODAY, status: 'done' })
     expect(ids(planReschedule([missed], [missed, later], TODAY).move)).toEqual([missed.id])
   })
+
+  it('does not count an occurrence as its own next one', () => {
+    // Today's only occurrence (an after-completion repeat), moved to tomorrow.
+    const todays = task({ series_id: 's', due_on: TODAY })
+    expect(ids(planReschedule([todays], [todays], TODAY).move)).toEqual([todays.id])
+  })
+
+  it('skips today’s occurrence when tomorrow’s already exists', () => {
+    const todays = task({ series_id: 's', due_on: TODAY })
+    const tomorrows = task({ series_id: 's', due_on: '2026-07-30' })
+    expect(ids(planReschedule([todays], [todays, tomorrows], TODAY).skip)).toEqual([todays.id])
+  })
 })
