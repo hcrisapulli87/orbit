@@ -4,6 +4,7 @@ import { useData } from '../data/DataProvider'
 import { isInbox } from '../data/tasks'
 import { CaptureBar } from './CaptureBar'
 import { Toast } from './Toast'
+import { FocusBar } from './Focus'
 import { Icon } from './Icon'
 import type { IconName } from './Icon'
 
@@ -70,6 +71,9 @@ export function Layout() {
       {/* One stack, so the capture bar sits on the tab bar rather than being
           positioned at a hard-coded guess of where its top edge lands. */}
       <div className="dock" ref={dock}>
+        {/* A running timer sits on top of the stack. It's part of the measured
+            dock, so every screen makes room for it while it's there. */}
+        <FocusBar />
         {/* Reachable from every screen, above the tab bar — capture is never a trip. */}
         <CaptureBar />
         <nav className="tabbar">

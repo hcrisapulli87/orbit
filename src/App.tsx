@@ -4,6 +4,7 @@ import { DataProvider } from './data/DataProvider'
 import { Layout } from './components/Layout'
 import { ErrorBoundary } from './components/ErrorBoundary'
 import { OfflineBanner } from './components/OfflineBanner'
+import { FocusProvider } from './components/Focus'
 import Login from './screens/Login'
 import Today from './screens/Today'
 import Calendar from './screens/Calendar'
@@ -36,30 +37,32 @@ export default function App() {
   // screen still leaves the app shell and the reload button standing.
   return (
     <DataProvider>
-      <OfflineBanner />
-      <ErrorBoundary>
-        <Routes>
-          <Route element={<Layout />}>
-            <Route path="/" element={<Today />} />
-            <Route path="/calendar" element={<Calendar />} />
-            <Route path="/inbox" element={<Inbox />} />
-            <Route path="/lists" element={<Lists />} />
-            <Route path="/habits" element={<Habits />} />
-            <Route path="/settings" element={<Settings />} />
-            <Route path="/appearance" element={<Appearance />} />
-            <Route path="/project/:id" element={<ProjectDetail />} />
-            <Route path="/task/:id" element={<TaskDetail />} />
-            <Route path="/series/:id" element={<SeriesDetail />} />
-            <Route path="/templates" element={<Templates />} />
-            <Route path="/help" element={<Help />} />
-            <Route path="/search" element={<Search />} />
-            <Route path="/logbook" element={<Logbook />} />
-            <Route path="/wrap-up" element={<WrapUp />} />
-            <Route path="/week" element={<WeekReview />} />
-            <Route path="*" element={<Today />} />
-          </Route>
-        </Routes>
-      </ErrorBoundary>
+      <FocusProvider>
+        <OfflineBanner />
+        <ErrorBoundary>
+          <Routes>
+            <Route element={<Layout />}>
+              <Route path="/" element={<Today />} />
+              <Route path="/calendar" element={<Calendar />} />
+              <Route path="/inbox" element={<Inbox />} />
+              <Route path="/lists" element={<Lists />} />
+              <Route path="/habits" element={<Habits />} />
+              <Route path="/settings" element={<Settings />} />
+              <Route path="/appearance" element={<Appearance />} />
+              <Route path="/project/:id" element={<ProjectDetail />} />
+              <Route path="/task/:id" element={<TaskDetail />} />
+              <Route path="/series/:id" element={<SeriesDetail />} />
+              <Route path="/templates" element={<Templates />} />
+              <Route path="/help" element={<Help />} />
+              <Route path="/search" element={<Search />} />
+              <Route path="/logbook" element={<Logbook />} />
+              <Route path="/wrap-up" element={<WrapUp />} />
+              <Route path="/week" element={<WeekReview />} />
+              <Route path="*" element={<Today />} />
+            </Route>
+          </Routes>
+        </ErrorBoundary>
+      </FocusProvider>
     </DataProvider>
   )
 }

@@ -929,6 +929,29 @@ a.chip--action { text-decoration: none; }
   font-size: 0.78rem; font-weight: 700; text-align: center;
 }
 
+/* ---- focus timer: one line in the dock, above the capture bar ---- */
+.focusbar {
+  display: flex; align-items: center; gap: 6px;
+  padding: 6px 6px 6px 14px; border-radius: 999px;
+  background: var(--bar-bg); color: var(--ink); border: 1px solid var(--border);
+  backdrop-filter: var(--blur); -webkit-backdrop-filter: var(--blur);
+  box-shadow: var(--shadow-soft);
+}
+.focusbar__time {
+  font-weight: 800; font-variant-numeric: tabular-nums; color: var(--accent-text); flex-shrink: 0;
+}
+.focusbar__title {
+  flex: 1; min-width: 0; font-size: 0.82rem; color: var(--dim);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.focusbar__btn {
+  flex-shrink: 0; min-height: 36px; padding: 0 10px; border-radius: 999px;
+  border: 1px solid var(--border); background: var(--glass-2); color: var(--ink);
+  font: inherit; font-size: 0.78rem; font-weight: 700; cursor: pointer;
+}
+.focusbar__btn--done { background: var(--accent); color: var(--accent-ink); border-color: transparent; }
+.focusbar--up { border-color: var(--accent-text); }
+
 /* ---- undo toast ----
    Floats just above the measured dock rather than living inside it, so its
    coming and going never changes --dock-h under every screen. */

@@ -81,6 +81,7 @@ export default function Help() {
           rows={[
             ['Swipe a task right', 'Done. Swipe a finished one right to reopen it.'],
             ['Swipe a task left', 'Moves it to tomorrow. On a repeat, only this one moves.'],
+            ['Focus', 'Open a task and tap “Focus on this”. The timer runs for the task’s own estimate, sits above the capture bar on every screen, and survives closing the app. When it’s up: Done, five more minutes, or stop.'],
             ['Undo', 'Ticking, moving, deleting and rescheduling all leave a note at the bottom of the screen for a few seconds. Tap Undo there to put it back.'],
             ['Overdue', 'The banner on Today moves everything overdue to today or tomorrow in one tap. A missed repeat whose next one is already waiting is skipped instead, so it doesn’t turn up twice.'],
           ]}

@@ -8,6 +8,8 @@ import type { EndMode } from '../components/RepeatEditor'
 import { ProgressBar } from '../components/ui/ProgressBar'
 import { SegmentedControl } from '../components/ui/SegmentedControl'
 import { useData } from '../data/DataProvider'
+import { useFocus } from '../components/Focus'
+import { defaultEstimateFor } from '../domain/planner'
 import { describeRule, nthOccurrenceDate } from '../domain/recurrence'
 import type { Rule } from '../domain/recurrence'
 import { ruleOf } from '../data/series'
@@ -27,6 +29,7 @@ export default function TaskDetail() {
   const { tasks, series, projects, addTask, patchTask, removeTask } = useData()
   const [subtask, setSubtask] = useState('')
   const [repeating, setRepeating] = useState(false)
+  const focus = useFocus()
 
   const task = tasks.find((t) => t.id === id)
   if (!task) {
@@ -83,6 +86,19 @@ export default function TaskDetail() {
           placeholder="Notes"
         />
       </div>
+
+      {task.status === 'open' && task.kind !== 'event' && (
+        <button
+          className="btn"
+          style={{ width: '100%', marginBottom: 'var(--gap)' }}
+          onClick={() => focus.start(task)}
+          disabled={focus.session?.taskId === task.id}
+        >
+          {focus.session?.taskId === task.id
+            ? 'Focusing on this'
+            : `Focus on this for ${Math.max(5, defaultEstimateFor(task))} min`}
+        </button>
+      )}
 
       <div className="card">
         <h2>When</h2>

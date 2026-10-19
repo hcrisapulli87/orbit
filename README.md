@@ -43,6 +43,9 @@ screen.
   the device with the id it will keep, shown with a *waiting to save* chip,
   and sent in order when the connection returns — safely, if it's sent twice.
   Edits to rows already on the server still need the network.
+- **A focus timer** on any task, for the task's own estimate — nothing to set.
+  It lives in the dock on every screen, survives a reload, and when time is up
+  offers Done, five more minutes, or stop.
 - **Wrap-up and weekly review.** Two screens, offered on Today when they
   make sense (late afternoon; Friday to Monday) and never required. The
   wrap-up shows what got done, takes a one-tap decision on each thing still
